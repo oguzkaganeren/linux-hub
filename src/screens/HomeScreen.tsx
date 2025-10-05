@@ -1,24 +1,9 @@
-import React, { Suspense } from 'react';
-import {
-  Stack,
-  Text,
-  Icon,
-  Box,
-  Button,
-  Container,
-  createIcon,
-  HStack,
-  Spacer,
-} from '@chakra-ui/react';
-import {
-  useColorModeValue,
-} from "@/components/ui/color-mode"
-import { useTranslation } from 'react-i18next';
-import '@fontsource-variable/caveat';
-import { open } from '@tauri-apps/plugin-shell';
-import LearnMoreComponent from '../components/home/LearnMoreComponent';
-import LiveInstaller from '../components/home/LiveInstaller';
-import DistroDetail from '../components/home/DistroDetail';
+import React, { Suspense } from "react";
+import { Stack, Text, Icon, Box, Button, Container } from "@chakra-ui/react";
+import { useColorModeValue } from "@/components/ui/color-mode";
+import { useTranslation } from "react-i18next";
+import "@fontsource-variable/caveat";
+import LiveInstaller from "../components/home/LiveInstaller";
 
 const HomeScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -31,22 +16,11 @@ const HomeScreen: React.FC = () => {
       alignItems="center"
       minH="90dvh"
     >
-      <Stack
-        as={Box}
-        textAlign="center"
-        justify="center"
-        align="center"
-      >
-        <DistroDetail />
-        <Text color={useColorModeValue('gray.800', 'gray.300')}>
-          {t('homeText1')}
-          {' '}
-          <Button
-            variant="subtle"
-            onClick={async () => {
-            }}
-          >
-            {t('sendFeedback')}
+      <Stack as={Box} textAlign="center" justify="center" align="center">
+        <Text color={useColorModeValue("gray.800", "gray.300")}>
+          {t("homeText1")}{" "}
+          <Button variant="subtle" onClick={async () => {}}>
+            {t("sendFeedback")}
           </Button>
         </Text>
 
@@ -63,17 +37,16 @@ const HomeScreen: React.FC = () => {
             colorScheme="whatsapp"
             pt={1}
             px={6}
-            size={['xs', 'sm', 'md', 'md']}
+            size={["xs", "sm", "md", "md"]}
             _hover={{
-              bg: 'green.500',
+              bg: "green.500",
             }}
           >
-            {t('start')}
+            {t("start")}
           </Button>
           <Suspense>
             <LiveInstaller />
           </Suspense>
-
         </Stack>
       </Stack>
     </Container>

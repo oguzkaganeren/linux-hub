@@ -1,4 +1,4 @@
-[![CodeFactor](https://www.codefactor.io/repository/github/oguzkaganeren/manj/badge)](https://www.codefactor.io/repository/github/oguzkaganeren/manj) 
+[![CodeFactor](https://www.codefactor.io/repository/github/oguzkaganeren/manj/badge)](https://www.codefactor.io/repository/github/oguzkaganeren/manj)
 
 ![build](https://github.com/oguzkaganeren/manj/actions/workflows/deploymentCheck.yml/badge.svg)
 
@@ -6,7 +6,7 @@
 <br />
 <p align="center">
   <a href="https://github.com/oguzkaganeren/manj">
-    <img src="./public/logo.svg" alt="Logo" width="80" height="80">
+    <img src="./public/icon.png" alt="Logo" width="80" height="80">
   </a>
 
   <h3 align="center">Manj</h3>
@@ -27,6 +27,7 @@
 </p>
 
 <!-- ABOUT THE PROJECT -->
+
 ## About The Project
 
 <p float="left"> 
@@ -38,68 +39,68 @@
 
 ## Features
 
-
-
 <!-- USAGE EXAMPLES -->
+
 ## Installations
-
-
 
 ## Dependencies
 
-
-
 ### Dependency(Optional)
-
 
 ### Used
 
-
 ### Built With
 
-* [React](https://reactjs.org)
-* [Tauri](https://tauri.studio)
+- [React](https://reactjs.org)
+- [Tauri](https://tauri.studio)
 
 <!-- GETTING STARTED -->
+
 ## Getting Started
 
 To get a local copy up and running follow these steps.
 
 ### Prerequisites
 
-* yarn
-* https://tauri.app/v1/guides/getting-started/prerequisites#setting-up-linux
-* cargo
+- yarn
+- https://tauri.app/v1/guides/getting-started/prerequisites#setting-up-linux
+- cargo
 
 ### Installation
 
 1. Clone the repo
+
 ```sh
 git clone https://github.com/oguzkaganeren/manj.git
 ```
+
 2. Install NPM packages
+
 ```sh
 yarn install
 ```
+
 3. Run debug mode
+
 ```sh
 yarn tauri dev
 ```
 
 #### Vscode
+
 1. Install suggested vscode extensions(`.vscode/extensions.json`)
 2. Press F5 or Run -> Start Debugging
 
 ## Logs location
 
-
 <!-- ROADMAP -->
+
 ## 🚧 Roadmap
 
 See the [open issues](https://github.com/oguzkaganeren/manj/issues) for a list of proposed features (and known issues).
 
-
 <!-- CONTRIBUTING -->
+
 ## 🤝 Contributing
 
 Contributions are what make the open source community such an amazing place to be learn, inspire, and create. Any contributions you make are **extremely appreciated**.
@@ -110,7 +111,6 @@ Contributions are what make the open source community such an amazing place to b
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-
 ### Translations
 
 1. Save as `src/translations/en.json` with your local json name
@@ -120,25 +120,18 @@ Contributions are what make the open source community such an amazing place to b
 5. Commit all changes
 6. Send pull request
 
-
 <!-- LICENSE -->
+
 ## 📝 License
 
 Distributed under the GNU License. See `LICENSE.md` for more information.
 
 <!-- CONTACT -->
+
 ## 📫 Contact
-
-
 
 Project Link: [https://github.com/oguzkaganeren/manj](https://github.com/oguzkaganeren/manj)
 
-
 <!-- ACKNOWLEDGEMENTS -->
+
 ## Contributors
-
-
-
-
-
-

@@ -81,7 +81,6 @@ const commands = {
   getPamac,
   getGLM,
   getLspci,
-  getMSM,
   getMCP,
   getRunningKernel,
   getMirrorCountry,

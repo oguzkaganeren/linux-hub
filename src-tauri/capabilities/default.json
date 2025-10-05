@@ -11,25 +11,29 @@
     "shell:default",
     "log:default",
     "core:window:default",
-     "core:window:allow-start-dragging",
-     "core:window:allow-close",
-     "core:window:allow-maximize",
-     "core:window:allow-minimize",
-     "core:window:allow-toggle-maximize",
-     "shell:allow-spawn",
-     {
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "shell:allow-spawn",
+    {
       "identifier": "shell:allow-spawn",
       "allow": [
         {
           "name": "whoami",
           "cmd": "whoami",
           "args": true
-        },{
+        },
+        {
           "name": "getRelease",
           "cmd": "cat",
-          "args": ["/etc/lsb-release"]
+          "args": [
+            "/etc/lsb-release"
+          ]
         }
       ]
-    }
+    },
+    "fs:default"
   ]
 }
