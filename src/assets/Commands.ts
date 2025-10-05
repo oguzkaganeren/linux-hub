@@ -62,9 +62,6 @@ const getLspci = {
   program: 'lspci',
 } as commandType;
 
-const getMSM = {
-  program: 'manjaro-settings-manager',
-} as commandType;
 
 const getMCP = {
   program: 'mcp',

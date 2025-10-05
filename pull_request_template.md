@@ -23,7 +23,7 @@ Please describe the tests that you ran to verify your changes. Provide instructi
 - [ ] Test B
 
 **Test Configuration**:
-* Manjaro version:
+* Linux version:
 * Hardware:
 
 ## Checklist:
