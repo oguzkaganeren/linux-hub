@@ -13,16 +13,7 @@ import availableLanguages from "../../i18n";
 const LanguageComponent: React.FC = () => {
   const { i18n, t } = useTranslation();
   return (
-    <Fieldset.Root
-      py={4}
-      px={8}
-      bg="white"
-      _dark={{
-        bg: "gray.800",
-      }}
-      shadow="lg"
-      rounded="lg"
-    >
+    <Fieldset.Root py={4} px={8} shadow="lg" rounded="lg">
       <Field.Root>
         <Field.Label>{t("language")}</Field.Label>
         <NativeSelect.Root>

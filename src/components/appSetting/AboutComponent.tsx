@@ -60,10 +60,6 @@ const AboutDetailsInfo = () => {
     <Box>
       <Heading
         size="md"
-        color="gray.800"
-        _dark={{
-          color: "white",
-        }}
         fontSize={{
           base: "1xl",
           md: "3xl",
@@ -74,10 +70,6 @@ const AboutDetailsInfo = () => {
       </Heading>
       <Heading
         size="sm"
-        color="gray.800"
-        _dark={{
-          color: "white",
-        }}
         fontSize={{
           base: "1xl",
           md: "2xl",
@@ -94,18 +86,7 @@ const AboutDetailsInfo = () => {
 };
 
 const AboutComponent = (): JSX.Element => (
-  <Box
-    mx="auto"
-    py={4}
-    px={8}
-    mt={16}
-    bg="white"
-    _dark={{
-      bg: "gray.800",
-    }}
-    shadow="lg"
-    rounded="lg"
-  >
+  <Box mx="auto" py={4} px={8} mt={16} shadow="lg" rounded="lg">
     <Flex
       justifyContent={{
         base: "center",
@@ -120,10 +101,6 @@ const AboutComponent = (): JSX.Element => (
         rounded="full"
         borderStyle="solid"
         borderWidth={2}
-        color="brand.500"
-        _dark={{
-          color: "brand.400",
-        }}
         src={logo}
       />
     </Flex>

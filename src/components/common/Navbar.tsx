@@ -1,4 +1,11 @@
-import { Flex, Stack, IconButton, ButtonGroup, Spacer } from "@chakra-ui/react";
+import {
+  Flex,
+  Stack,
+  IconButton,
+  ButtonGroup,
+  Spacer,
+  Image,
+} from "@chakra-ui/react";
 import React from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SquareX, ArrowDownFromLine, AppWindow } from "lucide-react";
@@ -10,6 +17,7 @@ const appWindow = getCurrentWebviewWindow();
 const Navbar: React.FC = () => (
   <Flex as="header" pos="fixed" top="0" w="full" boxShadow="sm" zIndex={998}>
     <div data-tauri-drag-region="" className="titlebar" />
+
     <Flex h={16} alignItems="center">
       <DistroDetail />
     </Flex>
@@ -29,28 +37,31 @@ const Navbar: React.FC = () => (
         <ButtonGroup>
           <IconButton
             aria-label="Minimize"
+            variant="outline"
             onClick={() => {
               appWindow.minimize();
             }}
-            size="sm"
+            size="xs"
           >
             <ArrowDownFromLine />
           </IconButton>
           <IconButton
             aria-label="Window"
+            variant="outline"
             onClick={() => {
               appWindow.toggleMaximize();
             }}
-            size="sm"
+            size="xs"
           >
             <AppWindow />
           </IconButton>
           <IconButton
             aria-label="Close"
+            variant="outline"
             onClick={() => {
               appWindow.close();
             }}
-            size="sm"
+            size="xs"
           >
             <SquareX />
           </IconButton>

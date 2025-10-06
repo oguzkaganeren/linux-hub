@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Heading, VStack, Text, AbsoluteCenter } from "@chakra-ui/react";
+import { Heading, Highlight, Text, AbsoluteCenter } from "@chakra-ui/react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -28,18 +28,14 @@ const DistroDetail = () => {
   }, []);
   return (
     <AbsoluteCenter>
-      <VStack mt={2}>
-        {distro}
-        <br />
-        <Text
-          as="span"
-          fontSize="md"
-          style={{ textTransform: "capitalize" }}
-          color="green.400"
+      <Heading size="xs" letterSpacing="tight">
+        <Highlight
+          query={codeName}
+          styles={{ color: "teal.600", _dark: { color: "teal.300" } }}
         >
-          {version} {codeName}
-        </Text>
-      </VStack>
+          {distro + " " + version + " " + codeName}
+        </Highlight>
+      </Heading>
     </AbsoluteCenter>
   );
 };

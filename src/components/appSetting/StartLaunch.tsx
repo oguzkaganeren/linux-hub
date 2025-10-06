@@ -32,7 +32,7 @@ const StartLaunch = (): JSX.Element => {
       const configDirPath = await configDir();
       if (
         (await exists(
-          `${configDirPath}autostart/manj.desktop`
+          `${configDirPath}/autostart/manj.desktop`
         )) as unknown as boolean
       ) {
         setLaunch(true);
@@ -41,17 +41,7 @@ const StartLaunch = (): JSX.Element => {
     getLocalData();
   }, []);
   return (
-    <Fieldset.Root
-      py={4}
-      px={8}
-      mt={4}
-      bg="white"
-      _dark={{
-        bg: "gray.800",
-      }}
-      shadow="lg"
-      rounded="lg"
-    >
+    <Fieldset.Root py={4} px={8} mt={4} shadow="lg" rounded="lg">
       <HStack>
         <Spacer />
 

@@ -5,22 +5,34 @@ import {
   Portal,
   CloseButton,
 } from "@chakra-ui/react";
-import { FC } from "react";
+import { FC, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AboutComponent from "./AboutComponent";
 import LanguageComponent from "./LanguageComponent";
 import StartLaunch from "./StartLaunch";
+import { Settings } from "lucide-react";
 
 const AppSettings: FC = () => {
-  const { open, onOpen, onClose } = useDisclosure();
+  const [open, setOpen] = useState(false);
   const { t } = useTranslation();
   return (
-    <>
-      <IconButton size="sm" aria-label="Menu" onClick={onOpen} />
-      <Dialog.Root open={open} size="md" onExitComplete={onClose}>
-        <Portal>
-          <Dialog.Backdrop />
-          <Dialog.Content bg="#edf3f8" _dark={{ bg: "#2D3748" }}>
+    <Dialog.Root
+      open={open}
+      size={{ mdDown: "full", md: "sm" }}
+      placement={"top"}
+      lazyMount
+      onOpenChange={(e) => setOpen(e.open)}
+    >
+      <Dialog.Trigger asChild>
+        <IconButton size="xs" aria-label="Menu" variant="outline">
+          <Settings />
+        </IconButton>
+      </Dialog.Trigger>
+      <Portal>
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.CloseTrigger />
             <Dialog.Header>{t("appSettings")}</Dialog.Header>
             <Dialog.Body pb={6}>
               <LanguageComponent />
@@ -31,9 +43,9 @@ const AppSettings: FC = () => {
               <CloseButton size="sm" />
             </Dialog.CloseTrigger>
           </Dialog.Content>
-        </Portal>
-      </Dialog.Root>
-    </>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 };
 export default AppSettings;
