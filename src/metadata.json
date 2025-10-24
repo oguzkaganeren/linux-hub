@@ -1,0 +1,5 @@
+{
+  "name": "Linux Hub",
+  "description": "A modern, user-friendly application to configure your Linux system and discover essential packages. Features a Windows 11-inspired blurred UI, package management, system configuration tools, and theme customization.",
+  "requestFramePermissions": []
+}

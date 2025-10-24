@@ -1,0 +1,55 @@
+import React, { useCallback } from 'react';
+import { Minus, Square, X, ArrowLeft, Sun, Moon, Settings } from 'lucide-react';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { openSettingsModal } from '../store/appSlice';
+import { toggleThemeMode } from '../store/themeSlice';
+import { translations } from '../data/translations';
+
+
+interface TitleBarProps {
+  showBackButton?: boolean;
+  onBack?: () => void;
+}
+
+const TitleBar: React.FC<TitleBarProps> = ({ showBackButton, onBack }) => {
+  const dispatch = useAppDispatch();
+  const theme = useAppSelector((state) => state.theme);
+  const language = useAppSelector((state) => state.app.language);
+  
+  const t = useCallback((key: string): string => {
+    return translations[language]?.[key] || translations['en']?.[key] || key;
+  }, [language]);
+
+
+  return (
+    <div className="flex items-center justify-between h-12 px-4 bg-transparent flex-shrink-0">
+      <div className="flex items-center gap-4">
+        {showBackButton && (
+          <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+        )}
+        <h1 className="text-base md:text-lg font-semibold text-gray-800 dark:text-gray-100">{t('app_name')}</h1>
+      </div>
+      <div className="flex items-center space-x-2">
+        <button onClick={() => dispatch(toggleThemeMode())} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+          {theme.mode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+        <button onClick={() => dispatch(openSettingsModal())} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <Settings size={18} />
+        </button>
+        <button className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+          <Minus size={18} />
+        </button>
+        <button className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+          <Square size={16} />
+        </button>
+        <button className="p-2 rounded hover:bg-red-500/80 transition-colors">
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default TitleBar;
