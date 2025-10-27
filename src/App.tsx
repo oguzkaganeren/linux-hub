@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Toaster } from "react-hot-toast";
 import { Page, PackageStatus, Kernel, PackageState } from "./types";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
-import { navigateTo, setOnlineStatus } from "./store/appSlice";
+import { navigateTo, setOnlineStatus, setLiveMode } from "./store/appSlice";
 import { setProgress, finishInstall, failInstall } from "./store/packagesSlice";
 import { translations } from "./data/translations";
 import { packageData } from "./data/packages";
@@ -75,6 +75,20 @@ const App: React.FC = () => {
       window.removeEventListener("offline", handleOffline);
     };
   }, [dispatch, t]);
+
+  // Effect for Live Mode detection simulation
+  useEffect(() => {
+    const checkLiveMode = async () => {
+      // This is a mock of how you might detect a live environment.
+      // In a real scenario, you might check for a specific file,
+      // environment variable, or use a Tauri command.
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate async check
+
+      // For demonstration, we'll assume it's a live environment.
+      dispatch(setLiveMode(true));
+    };
+    checkLiveMode();
+  }, [dispatch]);
 
   // Effect for installation simulation
   useEffect(() => {
