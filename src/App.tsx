@@ -1,6 +1,6 @@
 // FIX: Introduce a simulated failure chance (10%) into the package
 // installation process to test and demonstrate the new error handling UI.
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useLayoutEffect } from "react";
 import Landing from "./views/Landing";
 import Home from "./views/Home";
 import Packages from "./views/Packages";
@@ -40,14 +40,23 @@ const App: React.FC = () => {
     [language]
   );
 
-  // Effect for theme changes
+  // Effect for theme mode changes
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (theme.mode === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme.mode]);
+
+  // Effect for theme primary color changes
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme.mode === "dark");
     document.documentElement.style.setProperty(
       "--primary-color",
       theme.primaryColor
     );
-  }, [theme]);
+  }, [theme.primaryColor]);
 
   // Effect for online status
   useEffect(() => {
@@ -155,7 +164,6 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-gray-200 dark:bg-slate-800 text-gray-900 dark:text-gray-100 flex flex-col font-sans overflow-hidden">
-      <style>{`:root { --primary-color: ${theme.primaryColor}; }`}</style>
       <Toaster
         position="top-right"
         containerStyle={{

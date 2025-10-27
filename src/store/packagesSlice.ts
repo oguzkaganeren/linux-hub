@@ -5,7 +5,8 @@
 import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import { AllPackagesState, PackageStatus, Kernel, App } from '../types';
 import { packageData } from '../data/packages';
-import { RootState } from './store';
+// FIX: Use 'import type' to prevent circular dependency issues with the store.
+import type { RootState } from './store';
 
 interface PackagesState {
   packagesState: AllPackagesState;
