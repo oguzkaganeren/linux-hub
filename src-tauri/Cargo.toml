@@ -27,6 +27,6 @@ tauri-plugin-log = "2"
 tauri-plugin-fs = "2"
 whoami = "1.6.1"
 home = "0.5"
-base64 = "0.21.7"
+base64 = "0.22.1"
 sysinfo = { version = "0.37.2", features = ["serde"] } # The main system information library
 tokio = { version = "1", features = ["full"] }
