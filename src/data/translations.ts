@@ -158,6 +158,19 @@ export const translations: Record<string, Record<string, string>> = {
     open_source: 'Open-source',
     show_all_devices: 'Show all devices',
     display_controller: 'Display controller',
+    // Profile Modal
+    edit_profile: 'Edit Profile',
+    name: 'Full Name',
+    username: 'Username',
+    avatar_url: 'Avatar URL',
+    password_for_changes: 'Current Password',
+    password_for_changes_placeholder: 'Required to save name/username',
+    password_for_changes_required: 'Password is required to change name or username.',
+    save: 'Save',
+    cancel: 'Cancel',
+    toast_profile_updated: 'Profile updated!',
+    toast_user_update_inprogress: 'Saving changes...',
+    toast_user_update_failed: 'Update failed',
   },
   es: {
     app_name: 'Linux Hub',
@@ -311,5 +324,18 @@ export const translations: Record<string, Record<string, string>> = {
     open_source: 'Código abierto',
     show_all_devices: 'Mostrar todos los dispositivos',
     display_controller: 'Controlador de pantalla',
+    // Profile Modal
+    edit_profile: 'Editar Perfil',
+    name: 'Nombre Completo',
+    username: 'Nombre de usuario',
+    avatar_url: 'URL del Avatar',
+    password_for_changes: 'Contraseña Actual',
+    password_for_changes_placeholder: 'Requerida para guardar nombre/usuario',
+    password_for_changes_required: 'Se requiere la contraseña para cambiar el nombre o nombre de usuario.',
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    toast_profile_updated: '¡Perfil actualizado!',
+    toast_user_update_inprogress: 'Guardando cambios...',
+    toast_user_update_failed: 'Falló la actualización',
   }
 };

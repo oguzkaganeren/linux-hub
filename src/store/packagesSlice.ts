@@ -1,5 +1,6 @@
 
 
+
 import { createSlice, PayloadAction, createSelector, createAsyncThunk } from '@reduxjs/toolkit';
 import { invoke } from '@tauri-apps/api/core';
 import { AllPackagesState, PackageStatus, Kernel, App } from '../types';
@@ -43,26 +44,30 @@ const initialState: PackagesState = {
 
 export const checkAllPackageStates = createAsyncThunk(
     'packages/checkAllStates',
-    async (_, { rejectWithValue }) => {
+    async (_, { rejectWithValue, getState }) => {
         try {
-            const statusPromises = allInstallables.map(async (installable) => {
-                try {
-                    const resultJson = await invoke('check_package_status', {
-                        packageName: installable.pkg,
-                    });
-                    const status = JSON.parse(resultJson as string);
-                    return { pkg: installable.pkg, ...status };
-                } catch (e) {
-                    console.error(`Failed to check status for ${installable.pkg}:`, e);
-                    // Return a default "NotInstalled" state for this package on error
-                    return { pkg: installable.pkg, installed: false, available_update: false, error: true };
-                }
+            const packageNames = allInstallables.map(installable => installable.pkg);
+            const resultJson = await invoke('check_packages_status', {
+                packageNames: packageNames,
             });
+            const results: any[] = JSON.parse(resultJson as string);
 
-            const results = await Promise.all(statusPromises);
+            const currentState = (getState() as RootState).packages.packagesState;
+            const newPackagesState: AllPackagesState = { ...currentState };
 
-            const newPackagesState: AllPackagesState = {};
             results.forEach(status => {
+                const pkg = status.name;
+                // Don't override status if a package is currently being installed or has an error
+                const currentStatus = currentState[pkg]?.status;
+                if (currentStatus === PackageStatus.Installing || currentStatus === PackageStatus.Error) {
+                    return;
+                }
+                
+                if (!status.check_success) {
+                     newPackagesState[pkg] = { status: PackageStatus.NotInstalled, progress: 0 };
+                     return;
+                }
+
                 let pkgStatus: PackageStatus;
                 if (!status.installed) {
                     pkgStatus = PackageStatus.NotInstalled;
@@ -71,7 +76,7 @@ export const checkAllPackageStates = createAsyncThunk(
                 } else {
                     pkgStatus = PackageStatus.Installed;
                 }
-                newPackagesState[status.pkg] = { status: pkgStatus, progress: 0 };
+                newPackagesState[pkg] = { status: pkgStatus, progress: 0 };
             });
 
             return newPackagesState;

@@ -1,14 +1,21 @@
 use serde::Serialize;
 use std::process::Stdio;
+use std::time::{Duration, SystemTime};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
-// FIX: Import AppHandle and the Emitter trait for the .emit() method
-use tauri::{AppHandle, Emitter}; 
+use tokio::process::Command;
+use tokio::time::timeout;
 use serde_json::json;
-use std::time::SystemTime;
 
-// --- Data Structures ---
+// -----------------------------------------------------------------------------
+// Configuration
+// -----------------------------------------------------------------------------
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(300); // 5 min per pacman op
+const BATCH_TIMEOUT: Duration = Duration::from_secs(60);    // per package check
 
-/// Represents the overall result of the package operation.
+// -----------------------------------------------------------------------------
+// Data structures
+// -----------------------------------------------------------------------------
 #[derive(Debug, Serialize)]
 pub struct PacmanResult {
     pub success: bool,
@@ -17,8 +24,6 @@ pub struct PacmanResult {
     pub package_name: Option<String>,
 }
 
-/// Represents a progress update during a long operation.
-/// Sent via Tauri events to the frontend.
 #[derive(Debug, Serialize, Clone)]
 pub struct PacmanProgress {
     pub current_step: String,
@@ -37,262 +42,293 @@ pub struct PackageStatus {
     pub message: String,
 }
 
-
-// --- Event Emitter Function ---
-
-/// Emits a progress update to the frontend via the Tauri event system.
+// -----------------------------------------------------------------------------
+// Helper: emit progress to the frontend
+// -----------------------------------------------------------------------------
 fn emit_progress(handle: &AppHandle, step: &str, detail: &str) {
     let progress = PacmanProgress {
         current_step: step.to_string(),
         detail: detail.to_string(),
         timestamp: SystemTime::now(),
     };
-    // FIX: Use handle.emit()
-    let _ = handle.emit("pacman-progress", progress); 
+    let _ = handle.emit("pacman-progress", progress);
 }
 
-// --- Main Tauri Command Function ---
+// -----------------------------------------------------------------------------
+// Helper: run a command with streamed output + timeout
+// -----------------------------------------------------------------------------
+async fn run_command_with_output(
+    program: &str,
+    args: &[&str],
+    app_handle: &AppHandle,
+    op_desc: &str,
+) -> Result<(String, String), String> {
+    let prog = program.to_string();
+    let args_str = args.join(" ");
+    emit_progress(app_handle, op_desc, &format!("Running: {} {}", prog, args_str));
 
+    let mut child = Command::new(program)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| format!("Failed to spawn {}: {}", prog, e))?;
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut stderr_reader = BufReader::new(stderr).lines();
+
+    let out_handle = app_handle.clone();
+    let err_handle = app_handle.clone();
+
+    let stdout_task = tokio::spawn(async move {
+        while let Ok(Some(line)) = stdout_reader.next_line().await {
+            emit_progress(&out_handle, "STDOUT", &line);
+        }
+    });
+
+    let stderr_task = tokio::spawn(async move {
+        while let Ok(Some(line)) = stderr_reader.next_line().await {
+            emit_progress(&err_handle, "STDERR", &line);
+        }
+    });
+
+    // Wait for the child with timeout
+    let output = timeout(COMMAND_TIMEOUT, child.wait_with_output())
+        .await
+        .map_err(|_| format!("Command timed out after {:?}", COMMAND_TIMEOUT))?
+        .map_err(|e| e.to_string())?;
+
+    let _ = tokio::join!(stdout_task, stderr_task);
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    Ok((stdout, stderr))
+}
+
+// -----------------------------------------------------------------------------
+// Tauri command: install / remove / update (single operation)
+// -----------------------------------------------------------------------------
 #[tauri::command]
 pub async fn manage_pacman_package(
-    app_handle: AppHandle, // Needed for event emission
+    app_handle: AppHandle,
     operation: String,
     package_name: Option<String>,
 ) -> String {
-    
-    let mut command_args: Vec<String> = Vec::new();
-    let op_desc;
+    // Keep the original for the JSON result
+    let original_pkg = package_name.clone();
 
-    // --- 1. Build the Command Arguments based on operation ---
-    match operation.as_str() {
-        "install" => {
-            command_args.extend(vec!["pacman".into(), "-S".into(), "--noconfirm".into()]);
-            op_desc = "Installation";
-            if let Some(pkg) = &package_name {
-                command_args.push(pkg.clone());
-            } else {
-                 return json!(PacmanResult {
-                    success: false,
-                    message: "Package name is required for install.".to_string(),
-                    operation: operation.clone(), package_name: None,
-                }).to_string();
-            }
+    // Owned string that lives for the whole function
+    let pkg_owned: String = match package_name {
+        Some(p) => p,
+        None => {
+            return json!(PacmanResult {
+                success: false,
+                message: "Package name required for install/remove.".into(),
+                operation,
+                package_name: None,
+            })
+            .to_string();
         }
-        "remove" => {
-             command_args.extend(vec!["pacman".into(), "-Rns".into(), "--noconfirm".into()]);
-             op_desc = "Removal";
-             if let Some(pkg) = &package_name {
-                command_args.push(pkg.clone());
-             } else {
-                 return json!(PacmanResult {
-                    success: false,
-                    message: "Package name is required for remove.".to_string(),
-                    operation: operation.clone(), package_name: None,
-                }).to_string();
-             }
-        }
-        "update" => {
-            command_args.extend(vec!["pacman".into(), "-Syu".into(), "--noconfirm".into()]);
-            op_desc = "System Update";
-        }
+    };
+
+    let (program, args_vec, op_desc): (&str, Vec<&str>, &str) = match operation.as_str() {
+        "install" => (
+            "pkexec",
+            vec!["pacman", "-S", "--noconfirm", &pkg_owned],
+            "Installation",
+        ),
+        "remove" => (
+            "pkexec",
+            vec!["pacman", "-Rns", "--noconfirm", &pkg_owned],
+            "Removal",
+        ),
+        "update" => ("pkexec", vec!["pacman", "-Syu", "--noconfirm"], "System Update"),
         _ => {
             return json!(PacmanResult {
                 success: false,
                 message: format!("Invalid operation: {}", operation),
                 operation,
-                package_name,
-            }).to_string();
-        }
-    }
-
-
-    // --- 2. Setup the Asynchronous pkexec Command ---
-    emit_progress(&app_handle, op_desc, &format!("Executing elevated command via pkexec: {}", command_args.join(" ")));
-
-    // Use pkexec for graphical privilege elevation
-    // The command arguments contain the program to run ("pacman") followed by its args.
-    let cmd = tokio::process::Command::new("pkexec") 
-        .args(&command_args)
-        .stdout(Stdio::piped()) 
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| format!("Failed to spawn command: {}", e));
-
-    let mut child = match cmd {
-        Ok(c) => c,
-        Err(e) => {
-            emit_progress(&app_handle, op_desc, &format!("Error: {}", e));
-            return json!(PacmanResult {
-                success: false, message: e, operation, package_name,
-            }).to_string();
+                package_name: original_pkg,
+            })
+            .to_string();
         }
     };
-    
-    // Extract and buffer the output streams for line-by-line reading
-    let stdout = child.stdout.take().expect("Failed to get stdout handle");
-    let stderr = child.stderr.take().expect("Failed to get stderr handle");
 
-    let stdout_reader = BufReader::new(stdout);
-    let stderr_reader = BufReader::new(stderr);
-    let mut stdout_lines = stdout_reader.lines();
-    let mut stderr_lines = stderr_reader.lines();
+    emit_progress(&app_handle, op_desc, &format!("Starting {}...", op_desc));
 
-    // Clone handles for use in spawned threads
-    let cloned_handle_out = app_handle.clone();
-    let cloned_handle_err = app_handle.clone();
-    
-    // --- 3. Concurrently Process Output Streams ---
-    
-    // Task to read STDOUT lines and emit as progress
-    let stdout_task = tokio::spawn(async move {
-        while let Ok(Some(line)) = stdout_lines.next_line().await {
-            emit_progress(&cloned_handle_out, "STDOUT", &line);
-        }
-    });
-
-    // Task to read STDERR lines and emit as progress
-    let stderr_task = tokio::spawn(async move {
-        while let Ok(Some(line)) = stderr_lines.next_line().await {
-            emit_progress(&cloned_handle_err, "STDERR", &line);
-        }
-    });
-    
-    // Wait for the stream readers to finish
-    let _ = tokio::join!(stdout_task, stderr_task);
-    
-    // --- 4. Wait for Command to Finish and Process Exit Code ---
-    
-    let exit_status = child.wait().await;
-    
-    match exit_status {
-        Ok(status) if status.success() => {
-            emit_progress(
-                &app_handle,
-                op_desc,
-                &format!("Operation successful. Exit code: {}", status.code().unwrap_or(0)),
-            );
+    match run_command_with_output(program, &args_vec, &app_handle, op_desc).await {
+        Ok((_, _)) => {
+            let msg = format!("{} completed successfully.", op_desc);
+            emit_progress(&app_handle, op_desc, &msg);
             json!(PacmanResult {
                 success: true,
-                message: format!("{} completed successfully.", op_desc),
+                message: msg,
                 operation,
-                package_name,
-            }).to_string()
-        }
-        Ok(status) => {
-            emit_progress(
-                &app_handle,
-                op_desc,
-                &format!("Operation failed! Exit code: {}", status.code().unwrap_or(1)),
-            );
-            json!(PacmanResult {
-                success: false,
-                message: format!("{} failed with exit code: {}", op_desc, status.code().unwrap_or(1)),
-                operation,
-                package_name,
-            }).to_string()
+                package_name: original_pkg,
+            })
+            .to_string()
         }
         Err(e) => {
-            emit_progress(&app_handle, op_desc, &format!("Command execution error: {}", e));
+            emit_progress(&app_handle, op_desc, &format!("Failed: {}", e));
             json!(PacmanResult {
                 success: false,
-                message: format!("Command execution error: {}", e),
+                message: e,
                 operation,
-                package_name,
-            }).to_string()
+                package_name: original_pkg,
+            })
+            .to_string()
         }
     }
 }
 
-#[tauri::command]
-pub async fn check_package_status(app_handle: AppHandle, package_name: String) -> String {
-    let mut status = PackageStatus {
-        name: package_name.clone(),
-        installed: false,
-        current_version: None,
-        available_update: false,
-        latest_version: None,
-        check_success: true,
-        message: format!("Status check for {} initiated.", package_name),
-    };
-    
-    emit_progress(&app_handle, "STATUS_CHECK", &format!("Checking installation status for: {}", package_name));
+// -----------------------------------------------------------------------------
+// Helper: extract a version string from pacman output
+// -----------------------------------------------------------------------------
+fn parse_version_from_line(line: &str) -> Option<String> {
+    // pacman -Q  →  "pkgname 1.2.3-1"
+    if let Some(v) = line.split_whitespace().nth(1) {
+        return Some(v.to_string());
+    }
 
-    // --- Step A: Check Installed Status and Current Version (pacman -Q) ---
-    // pacman -Q will exit with code 0 if installed, 1 if not installed.
-    match tokio::process::Command::new("pacman")
-        .args(&["-Q", &package_name])
-        .output()
-        .await
-    {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-
-            if output.status.success() {
-                // Example output: "htop 3.2.2-1"
-                status.installed = true;
-                if let Some(version_str) = stdout.split_whitespace().nth(1) {
-                    status.current_version = Some(version_str.to_string());
-                }
-                emit_progress(&app_handle, "STATUS_CHECK", &format!("{} is installed. Version: {}", package_name, status.current_version.as_deref().unwrap_or("N/A")));
-            } else {
-                // Package is not installed
-                status.installed = false;
-                emit_progress(&app_handle, "STATUS_CHECK", &format!("{} is NOT installed.", package_name));
-            }
-        }
-        Err(e) => {
-            status.check_success = false;
-            status.message = format!("Failed to execute pacman -Q: {}", e);
-            emit_progress(&app_handle, "STATUS_CHECK_ERROR", &status.message);
-            return json!(status).to_string();
+    // pacman -Si → "Version : 1.2.3-2"
+    if let Some(colon_part) = line.split(':').nth(1) {
+        let trimmed = colon_part.trim();
+        if let Some(v) = trimmed.split_whitespace().next() {
+            return Some(v.to_string());
         }
     }
 
-    // --- Step B: Check Latest Version in Repositories (pacman -Si) ---
-    emit_progress(&app_handle, "STATUS_CHECK", &format!("Checking latest repository version for: {}", package_name));
+    None
+}
 
-    match tokio::process::Command::new("pacman")
-        .args(&["-Si", &package_name])
-        .output()
-        .await
-    {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            
-            if output.status.success() {
-                // Parse the output to find the "Version" field
-                if let Some(line) = stdout.lines().find(|l| l.trim().starts_with("Version")) {
-                    // Extract the version string (e.g., "Version       : 3.2.2-2")
-                    let latest_version = line.split(':').nth(1).unwrap_or("").trim().to_string();
-                    
-                    status.latest_version = Some(latest_version.clone());
-                    
-                    // Compare versions only if the package is installed
-                    if status.installed {
-                        // Simple string comparison usually works for pacman versions
-                        if status.current_version.as_ref().map_or(false, |v| v != &latest_version) {
-                            status.available_update = true;
-                            emit_progress(&app_handle, "UPDATE_AVAILABLE", &format!("Update available! {} -> {}", status.current_version.as_deref().unwrap_or("N/A"), latest_version));
-                        } else {
-                            emit_progress(&app_handle, "STATUS_CHECK", "Package is up-to-date.");
+// -----------------------------------------------------------------------------
+// Tauri command: check **multiple** packages in parallel
+// -----------------------------------------------------------------------------
+#[tauri::command]
+pub async fn check_packages_status(
+    app_handle: AppHandle,
+    package_names: Vec<String>,
+) -> String {
+    if package_names.is_empty() {
+        return json!(vec![] as Vec<PackageStatus>).to_string();
+    }
+
+    emit_progress(
+        &app_handle,
+        "BATCH_CHECK",
+        &format!("Checking {} packages...", package_names.len()),
+    );
+
+    let tasks = package_names.into_iter().map(|pkg| {
+        let handle = app_handle.clone();
+        tokio::spawn(async move {
+            let mut status = PackageStatus {
+                name: pkg.clone(),
+                installed: false,
+                current_version: None,
+                available_update: false,
+                latest_version: None,
+                check_success: true,
+                message: format!("Checking {}", pkg),
+            };
+
+            // ---------- 1. pacman -Q (installed?) ----------
+            let q_res = timeout(
+                BATCH_TIMEOUT,
+                Command::new("pacman").args(["-Q", &pkg]).output(),
+            )
+            .await;
+
+            match q_res {
+                Ok(Ok(out)) if out.status.success() => {
+                    let txt = String::from_utf8_lossy(&out.stdout);
+                    if let Some(ver) = parse_version_from_line(&txt) {
+                        status.installed = true;
+                        status.current_version = Some(ver.clone());
+                        emit_progress(&handle, "INSTALLED", &format!("{} v{}", pkg, ver));
+                    }
+                }
+                _ => {
+                    emit_progress(&handle, "NOT_INSTALLED", &format!("{} is not installed", pkg));
+                }
+            }
+
+            // ---------- 2. pacman -Si (repo version) ----------
+            let si_res = timeout(
+                BATCH_TIMEOUT,
+                Command::new("pacman").args(["-Si", &pkg]).output(),
+            )
+            .await;
+
+            match si_res {
+                Ok(Ok(out)) if out.status.success() => {
+                    let txt = String::from_utf8_lossy(&out.stdout);
+                    if let Some(ver_line) = txt.lines().find(|l| l.trim().starts_with("Version")) {
+                        if let Some(latest) = parse_version_from_line(ver_line) {
+                            status.latest_version = Some(latest.clone());
+
+                            if status.installed {
+                                if status.current_version.as_deref() != Some(&latest) {
+                                    status.available_update = true;
+                                    emit_progress(
+                                        &handle,
+                                        "UPDATE_AVAILABLE",
+                                        &format!(
+                                            "{}: {} to {}",
+                                            pkg,
+                                            status.current_version.as_deref().unwrap_or("?"),
+                                            latest
+                                        ),
+                                    );
+                                } else {
+                                    emit_progress(&handle, "UP_TO_DATE", &format!("{} is up to date", pkg));
+                                }
+                            }
                         }
                     }
                 }
-            } else {
-                // If pacman -Si fails, the package likely doesn't exist in repositories
-                status.check_success = false;
-                status.message = format!("Package '{}' not found in repositories.", package_name);
-                emit_progress(&app_handle, "STATUS_CHECK_ERROR", &status.message);
+                _ => {
+                    status.check_success = false;
+                    status.message = format!("Package '{}' not found in repositories", pkg);
+                    emit_progress(&handle, "NOT_IN_REPO", &status.message);
+                }
             }
-        }
-        Err(e) => {
-            status.check_success = false;
-            status.message = format!("Failed to execute pacman -Si: {}", e);
-            emit_progress(&app_handle, "STATUS_CHECK_ERROR", &status.message);
+
+            status
+        })
+    });
+
+    // ---- Collect all results ------------------------------------------------
+    let results = futures::future::join_all(tasks).await;
+
+    let mut final_results = Vec::with_capacity(results.len());
+    for res in results {
+        match res {
+            Ok(st) => final_results.push(st),
+            Err(e) => final_results.push(PackageStatus {
+                name: "unknown".into(),
+                installed: false,
+                current_version: None,
+                available_update: false,
+                latest_version: None,
+                check_success: false,
+                message: format!("Task error: {}", e),
+            }),
         }
     }
 
-    // --- 3. Return Final Status ---
-    json!(status).to_string()
+    json!(final_results).to_string()
+}
+
+// -----------------------------------------------------------------------------
+// Backward-compatible wrapper (single package)
+// -----------------------------------------------------------------------------
+#[tauri::command]
+pub async fn check_package_status(app_handle: AppHandle, package_name: String) -> String {
+    check_packages_status(app_handle, vec![package_name]).await
 }

@@ -6,7 +6,7 @@ import AppIcon from "../components/icons";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
 import { translations } from "../data/translations";
-import { updateUserProfile } from "../store/appSlice";
+import { updateUserProfile, openProfileModal } from "../store/appSlice";
 import { ConfigPanel } from "../types";
 import NavItem from "../components/configuration/NavItem";
 import HomePanel from "./configuration/HomePanel";
@@ -77,7 +77,7 @@ const Configuration: React.FC = () => {
     };
 
     fetchUserInfo();
-  }, [dispatch, user]);
+  }, [dispatch, user.avatarUrl, user.email, user.name]);
 
   const menuItems: { id: ConfigPanel; name: string; icon: string }[] = [
     { id: "home", name: t("home"), icon: "home" },
@@ -143,7 +143,10 @@ const Configuration: React.FC = () => {
       {/* Left Navigation Rail */}
       <aside className="w-64 lg:w-80 flex-shrink-0 p-4 pr-0">
         <div className="h-full bg-gray-100/80 dark:bg-gray-800/50 rounded-xl p-4 flex flex-col">
-          <div className="flex items-center gap-3 p-2 mb-4 rounded-lg text-left">
+          <button
+            onClick={() => dispatch(openProfileModal())}
+            className="flex items-center gap-3 p-2 mb-4 rounded-lg text-left w-full hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
+          >
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user.avatarUrl ? (
                 <img
@@ -166,7 +169,7 @@ const Configuration: React.FC = () => {
                 {user.email}
               </p>
             </div>
-          </div>
+          </button>
 
           <div className="relative mb-4">
             <AppIcon

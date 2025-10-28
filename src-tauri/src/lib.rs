@@ -529,6 +529,7 @@ pub fn run() {
             get_system_info,
             pacman_manager::manage_pacman_package,
             pacman_manager::check_package_status,
+             pacman_manager::check_packages_status,
             get_system_kernels])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -58,7 +58,6 @@ const appSlice = createSlice({
         closeSettingsModal: (state) => {
             state.isSettingsModalOpen = false;
         },
-        // FIX: Add state and actions for managing the profile modal's visibility.
         openProfileModal: (state) => {
             state.isProfileModalOpen = true;
         },

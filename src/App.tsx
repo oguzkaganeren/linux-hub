@@ -7,6 +7,7 @@ import About from "./views/About";
 import TitleBar from "./components/TitleBar";
 import StatusBar from "./components/StatusBar";
 import SettingsModal from "./components/SettingsModal";
+import ProfileModal from "./components/ProfileModal";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toaster } from "react-hot-toast";
 import { Page, PackageStatus } from "./types";
@@ -23,6 +24,9 @@ const App: React.FC = () => {
   const page = useAppSelector((state) => state.app.page);
   const isSettingsModalOpen = useAppSelector(
     (state) => state.app.isSettingsModalOpen
+  );
+  const isProfileModalOpen = useAppSelector(
+    (state) => state.app.isProfileModalOpen
   );
   const theme = useAppSelector((state) => state.theme);
   const language = useAppSelector((state) => state.app.language);
@@ -206,6 +210,9 @@ const App: React.FC = () => {
       <StatusBar />
       <AnimatePresence>
         {isSettingsModalOpen && <SettingsModal />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isProfileModalOpen && <ProfileModal />}
       </AnimatePresence>
     </div>
   );
