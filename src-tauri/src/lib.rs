@@ -124,6 +124,181 @@ pub struct UserInfo {
     name: String,
     groups: Vec<String>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct KernelInfo {
+    /// The currently running kernel version.
+    pub running_kernel: String,
+    /// List of kernels currently installed on the system.
+    pub installed_kernels: Vec<InstalledKernel>,
+    /// List of available kernel packages from the configured repositories.
+    pub installable_kernels: Vec<InstallableKernel>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstalledKernel {
+    pub name: String,
+    pub version: String,
+    /// e.g., "lts", "rt" (real-time), "zen"
+    pub flavor: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstallableKernel {
+    pub package_name: String,
+    pub version: String,
+    pub description: String,
+    pub flavor: String,
+}
+
+// --- The Core Tauri Command Function ---
+
+#[tauri::command]
+async fn get_system_kernels() -> Result<String, String> {
+    let running_kernel = get_running_kernel_version();
+    let installed_kernels = get_installed_kernels().map_err(|e| format!("Failed to get installed kernels: {}", e))?;
+    let installable_kernels = get_installable_kernels_from_repos().await.map_err(|e| format!("Failed to get installable kernels: {}", e))?;
+
+    let result = KernelInfo {
+        running_kernel,
+        installed_kernels,
+        installable_kernels,
+    };
+
+    // Serialize the final struct to a JSON string
+    serde_json::to_string_pretty(&result)
+        .map_err(|e| format!("Failed to serialize kernel info to JSON: {}", e))
+}
+
+fn get_running_kernel_version() -> String {
+    let mut sys = System::new();
+    // This call is now redundant if kernel_version() is an associated function
+    sys.refresh_all(); 
+
+    
+    sysinfo::System::kernel_version()
+        .unwrap_or_else(|| "<unknown>".to_owned())
+}
+async fn run_command(cmd: &str, args: &[&str]) -> Result<String, String> {
+    let output = tokio::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute command '{}': {}", cmd, e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(format!(
+            "Command failed: {} {}", 
+            cmd, 
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
+fn get_installed_kernels() -> Result<Vec<InstalledKernel>, std::io::Error> {
+    // NOTE: For a real-world Tauri app, you might want to use 
+    // `tokio::process::Command` here as well, but for simplicity
+    // and correctness, we'll shell out to 'pacman' later on.
+    
+    // Simplified logic: Read files in /lib/modules/
+    let mut installed_kernels = Vec::new();
+    let modules_path = "/lib/modules";
+
+    for entry in std::fs::read_dir(modules_path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(dir_name) = path.file_name().and_then(|s| s.to_str()) {
+                // A very simplified attempt to determine flavor based on common suffixes
+                let flavor = if dir_name.contains("lts") {
+                    "lts".to_string()
+                } else if dir_name.contains("rt") {
+                    "rt".to_string()
+                } else if dir_name.contains("zen") {
+                    "zen".to_string()
+                } else {
+                    "default".to_string() // Fallback for the main or other kernels
+                };
+
+                installed_kernels.push(InstalledKernel {
+                    name: format!("linux-{}", flavor), // Guess a package name
+                    version: dir_name.to_string(),
+                    flavor,
+                });
+            }
+        }
+    }
+
+    Ok(installed_kernels)
+}
+// Revised function to make parsing more defensive
+async fn get_installable_kernels_from_repos() -> Result<Vec<InstallableKernel>, String> {
+    // Search for all packages starting with 'linux-' (kernels, headers, etc.)
+    // We use the regex anchor '^' to only get packages that start with the prefix.
+    let output = run_command("pacman", &["-Ss", "^linux-"]).await?;
+
+    let mut installable_list = Vec::new();
+    let mut current_pkg_name: Option<String> = None;
+
+    for line in output.lines() {
+        // Line 1: 'repo/package-name version'
+        // Example: 'core/linux 6.6.1-arch1-1'
+        if line.starts_with("core/") || line.starts_with("extra/") || line.starts_with("community/") {
+            // New package entry starts
+            
+            // 1. Extract package name and version
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 2 { continue; } // Skip malformed lines
+
+            // parts[0] is typically 'repo/package-name'
+            let full_name = parts[0];
+            let pkg_name = full_name.split('/').nth(1).unwrap_or("unknown-pkg").to_string();
+            let pkg_version = parts[1].to_string();
+
+            // Skip packages that are clearly headers or docs, we only want the kernel image package
+            if pkg_name.ends_with("-headers") || pkg_name.ends_with("-docs") {
+                current_pkg_name = None;
+                continue;
+            }
+
+            // 2. Determine flavor
+            let flavor = if pkg_name.contains("lts") {
+                "lts"
+            } else if pkg_name.contains("rt") {
+                "rt"
+            } else if pkg_name.contains("zen") {
+                "zen"
+            } else if pkg_name == "linux" {
+                "main" // Standard mainline kernel
+            } else {
+                "other"
+            };
+
+            // 3. Create a new entry and store the name to look for the description next
+            current_pkg_name = Some(pkg_name.clone());
+            installable_list.push(InstallableKernel {
+                package_name: pkg_name,
+                version: pkg_version,
+                description: String::new(), // Will be filled in the next step
+                flavor: flavor.to_string(),
+            });
+
+        // Line 2: '    Description: ...'
+        } else if line.trim().starts_with("Description:") {
+            if let Some(name) = current_pkg_name.take() {
+                // Find the last entry we just created
+                if let Some(entry) = installable_list.iter_mut().rev().find(|e| e.package_name == name) {
+                    let desc = line.split(':').nth(1).unwrap_or("").trim().to_string();
+                    entry.description = desc;
+                }
+            }
+        }
+    }
+
+    Ok(installable_list)
+}
 #[tauri::command]
 fn get_user_profile_photo_base64() -> Result<String, String> {
     // 1. Get the user's home directory
@@ -350,7 +525,8 @@ pub fn run() {
             get_system_user_info,
             get_user_profile_photo_base64,
             run_elevated_command,
-            get_system_info])
+            get_system_info,
+            get_system_kernels])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
