@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use base64::{engine::general_purpose, Engine as _};
 use std::process::Command as StdCommand;
 use serde::{Serialize};
+mod pacman_manager;
 use sysinfo::{
    Components, Disks, Networks, System, Users,
 };
@@ -526,6 +527,8 @@ pub fn run() {
             get_user_profile_photo_base64,
             run_elevated_command,
             get_system_info,
+            pacman_manager::manage_pacman_package,
+            pacman_manager::check_package_status,
             get_system_kernels])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

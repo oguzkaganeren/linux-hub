@@ -37,6 +37,7 @@ export interface PackageState {
   status: PackageStatus;
   progress?: number;
   error?: string;
+  progressDetail?: string;
 }
 
 export type AllPackagesState = Record<string, PackageState>;

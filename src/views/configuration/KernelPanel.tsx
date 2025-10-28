@@ -180,18 +180,16 @@ const KernelPanel: React.FC = () => {
     );
     if (window.confirm(confirmationText)) {
       dispatch(remove(kernel.pkg));
-      setInstalledKernels((prev) =>
-        prev.filter((ik) => ik.version !== kernel.version)
-      );
-      toast.success(t("toast_kernel_remove_success"));
     }
   };
 
   const renderButton = (kernel: Kernel) => {
     const state = packagesState[kernel.pkg];
-    const isInstalled = installedKernels.some(
-      (k) => k.version === kernel.version
-    );
+    const isInstalled =
+      state?.status === PackageStatus.Installed ||
+      installedKernels.some(
+        (k) => k.version === kernel.version && state === undefined
+      );
 
     if (state?.status === PackageStatus.Installing) {
       return (

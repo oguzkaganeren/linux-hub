@@ -1,5 +1,3 @@
-// FIX: Introduce a simulated failure chance (10%) into the package
-// installation process to test and demonstrate the new error handling UI.
 import React, { useEffect, useCallback, useLayoutEffect } from "react";
 import Landing from "./views/Landing";
 import Home from "./views/Home";
@@ -11,13 +9,14 @@ import StatusBar from "./components/StatusBar";
 import SettingsModal from "./components/SettingsModal";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toaster } from "react-hot-toast";
-import { Page, PackageStatus, Kernel, PackageState } from "./types";
+import { Page, PackageStatus } from "./types";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { navigateTo, setOnlineStatus, setLiveMode } from "./store/appSlice";
-import { setProgress, finishInstall, failInstall } from "./store/packagesSlice";
+import { setProgress, checkAllPackageStates } from "./store/packagesSlice";
 import { translations } from "./data/translations";
-import { packageData } from "./data/packages";
+import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
+import { store } from "./store/store";
 
 const App: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -27,7 +26,6 @@ const App: React.FC = () => {
   );
   const theme = useAppSelector((state) => state.theme);
   const language = useAppSelector((state) => state.app.language);
-  const packagesState = useAppSelector((state) => state.packages.packagesState);
 
   const t = useCallback(
     (key: string): string => {
@@ -86,70 +84,71 @@ const App: React.FC = () => {
     checkLiveMode();
   }, [dispatch]);
 
-  // Effect for installation simulation
+  // Effect for listening to backend package management progress
   useEffect(() => {
-    const kernels: Omit<Kernel, "running">[] = [
-      { version: "6.5.3-1", releaseType: "stable", pkg: "linux65" },
-      { version: "6.4.16-2", releaseType: "recommended", pkg: "linux64" },
-      { version: "6.1.55-1", releaseType: "lts", pkg: "linux61" },
-      { version: "5.15.131-1", releaseType: "lts", pkg: "linux515" },
-    ];
+    const setupProgressListener = async () => {
+      const unlisten = await listen("pacman-progress", (event) => {
+        const payload = event.payload as {
+          current_step: string;
+          detail: string;
+        };
 
-    const allApps = packageData.flatMap((cat) => cat.apps);
-    const allInstallables = [
-      ...allApps.map((a) => ({ pkg: a.pkg, name: a.name, type: "app" })),
-      ...kernels.map((k) => ({
-        pkg: k.pkg,
-        name: `Linux ${k.version}`,
-        type: "kernel",
-      })),
-    ];
-
-    const simulationInterval = setInterval(() => {
-      const packagesToUpdate = Object.entries(packagesState)
-        // FIX: Add explicit type annotation to fix 'state' being inferred as 'unknown'.
-        .filter(
-          ([_, state]: [string, PackageState]) =>
-            state.status === PackageStatus.Installing &&
-            (state.progress ?? 0) < 100
+        // Workaround: Since the event doesn't contain a package name,
+        // find the package that is currently in the 'Installing' state.
+        // This assumes only one package operation happens at a time.
+        const allPackages = store.getState().packages.packagesState;
+        const installingPkg = Object.keys(allPackages).find(
+          (pkg) => allPackages[pkg].status === PackageStatus.Installing
         );
 
-      if (packagesToUpdate.length === 0) return;
+        if (installingPkg) {
+          const progressUpdate: {
+            pkg: string;
+            progress?: number;
+            detail?: string;
+          } = {
+            pkg: installingPkg,
+            detail: payload.detail,
+          };
 
-      // FIX: Add explicit type annotation to fix 'state' being inferred as 'unknown'.
-      packagesToUpdate.forEach(([pkg, state]: [string, PackageState]) => {
-        const item = allInstallables.find((i) => i.pkg === pkg);
-        // Simulate a 10% chance of failure
-        if (Math.random() < 0.1) {
-          dispatch(
-            failInstall({ pkg, error: t("toast_install_failed_generic") })
-          );
-          if (item) {
-            toast.error(`${item.name} ${t("toast_install_failed")}`);
+          let progressValue: number | undefined = undefined;
+
+          // First, try to parse current_step as a direct percentage
+          const progressFromStep = parseFloat(payload.current_step);
+          if (!isNaN(progressFromStep)) {
+            progressValue = progressFromStep;
+          } else {
+            // If that fails, try to parse a fraction like (1/4) from the detail string
+            const detailMatch = payload.detail.match(/\((\d+)\/(\d+)\)/);
+            if (detailMatch) {
+              const current = parseInt(detailMatch[1], 10);
+              const total = parseInt(detailMatch[2], 10);
+              if (!isNaN(current) && !isNaN(total) && total > 0) {
+                progressValue = (current / total) * 100;
+              }
+            }
           }
-          return;
-        }
 
-        const progressIncrement = 5 + Math.random() * 10;
-        // FIX: 'state' is now correctly typed as PackageState, so 'progress' property is accessible.
-        const newProgress = Math.min(
-          100,
-          (state.progress ?? 0) + progressIncrement
-        );
-
-        if (newProgress >= 100) {
-          dispatch(finishInstall(pkg));
-          if (item) {
-            toast.success(`${item.name} ${t("toast_install_success")}`);
+          if (progressValue !== undefined) {
+            progressUpdate.progress = Math.min(100, Math.max(0, progressValue));
           }
-        } else {
-          dispatch(setProgress({ pkg, progress: newProgress }));
+
+          dispatch(setProgress(progressUpdate));
         }
       });
-    }, 400);
 
-    return () => clearInterval(simulationInterval);
-  }, [packagesState, dispatch, t]);
+      return () => {
+        unlisten();
+      };
+    };
+
+    setupProgressListener();
+  }, [dispatch]);
+
+  // Effect for fetching initial package states from the system
+  useEffect(() => {
+    dispatch(checkAllPackageStates());
+  }, [dispatch]);
 
   const handleNavigate = (p: Page) => dispatch(navigateTo(p));
 
