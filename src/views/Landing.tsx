@@ -38,7 +38,7 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
   };
 
   const container = {
-    hidden: { opacity: 1 },
+    hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
@@ -75,16 +75,28 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
 
     if (isLiveMode) {
       return (
-        <motion.button
-          onClick={handleInstall}
+        <motion.div
           variants={item}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white font-semibold rounded-xl shadow-lg hover:bg-green-600 transition-all duration-300 transform flex items-center gap-2 group mx-auto md:mx-0"
+          className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4"
         >
-          <HardDrive size={20} />
-          <span>{t("install_now")}</span>
-        </motion.button>
+          <button
+            onClick={handleInstall}
+            className="px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white font-semibold rounded-xl shadow-lg hover:bg-green-600 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center hover:scale-105 active:scale-95"
+          >
+            <HardDrive size={20} />
+            <span>{t("install_now")}</span>
+          </button>
+          <button
+            onClick={onStart}
+            className="px-6 py-3 md:px-8 md:py-4 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:brightness-90 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center hover:scale-105 active:scale-95"
+          >
+            <span>{t("start")}</span>
+            <ArrowRight
+              size={20}
+              className="transition-transform group-hover:translate-x-1"
+            />
+          </button>
+        </motion.div>
       );
     }
 
@@ -107,14 +119,14 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
 
   return (
     <div className="h-full w-full flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-      <motion.div
-        className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center"
-        variants={container}
-        initial="hidden"
-        animate="visible"
-      >
+      <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
         {/* Left Content Section */}
-        <div className="text-center md:text-left">
+        <motion.div
+          className="text-center md:text-left"
+          variants={container}
+          initial="hidden"
+          animate="visible"
+        >
           <motion.h1
             variants={item}
             className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white mb-6"
@@ -132,7 +144,7 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
             {t("app_subtitle")}
           </motion.p>
           {renderStartButton()}
-        </div>
+        </motion.div>
 
         {/* Right Visual Section */}
         <motion.div
@@ -196,7 +208,7 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
             </div>
           </BlurredCard>
         </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -58,14 +58,15 @@ const appSlice = createSlice({
         closeSettingsModal: (state) => {
             state.isSettingsModalOpen = false;
         },
-        setLaunchOnStart: (state, action: PayloadAction<boolean>) => {
-            state.launchOnStart = action.payload;
-        },
+        // FIX: Add state and actions for managing the profile modal's visibility.
         openProfileModal: (state) => {
             state.isProfileModalOpen = true;
         },
         closeProfileModal: (state) => {
             state.isProfileModalOpen = false;
+        },
+        setLaunchOnStart: (state, action: PayloadAction<boolean>) => {
+            state.launchOnStart = action.payload;
         },
         updateUserProfile: (state, action: PayloadAction<UserProfile>) => {
             state.user = action.payload;
@@ -94,16 +95,16 @@ export const {
     setOnlineStatus, 
     setLanguage, 
     openSettingsModal, 
-    closeSettingsModal, 
+    closeSettingsModal,
     setLaunchOnStart,
-    openProfileModal,
-    closeProfileModal,
     updateUserProfile,
     addBluetoothDevice,
     removeBluetoothDevice,
     addPrinter,
     removePrinter,
-    setLiveMode
+    setLiveMode,
+    openProfileModal,
+    closeProfileModal
 } = appSlice.actions;
 
 export default appSlice.reducer;
