@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import BlurredCard from "../components/BlurredCard";
 import AppIcon from "../components/icons";
 import { ArrowRight, HardDrive, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAppSelector } from "../store/hooks";
 import { translations } from "../data/translations";
 import { Command } from "@tauri-apps/plugin-shell";
@@ -57,12 +57,20 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
         duration: 0.5,
       },
     },
+    exit: {
+      y: -20,
+      opacity: 0,
+      transition: {
+        duration: 0.3,
+      },
+    },
   };
 
   const renderStartButton = () => {
     if (isCheckingLiveMode) {
       return (
         <motion.button
+          key="checking"
           variants={item}
           disabled
           className="px-6 py-3 md:px-8 md:py-4 bg-gray-400 dark:bg-gray-600 text-white font-semibold rounded-xl shadow-lg transition-all duration-300 transform flex items-center gap-2 group mx-auto md:mx-0 cursor-wait"
@@ -76,34 +84,44 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
     if (isLiveMode) {
       return (
         <motion.div
+          key="live"
           variants={item}
+          initial="hidden"
+          animate="visible"
           className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4"
         >
-          <button
+          <motion.button
             onClick={handleInstall}
-            className="px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white font-semibold rounded-xl shadow-lg hover:bg-green-600 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center hover:scale-105 active:scale-95"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-6 py-3 md:px-8 md:py-4 bg-green-500 text-white font-semibold rounded-xl shadow-lg hover:bg-green-600 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center"
           >
             <HardDrive size={20} />
             <span>{t("install_now")}</span>
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             onClick={onStart}
-            className="px-6 py-3 md:px-8 md:py-4 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:brightness-90 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center hover:scale-105 active:scale-95"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-6 py-3 md:px-8 md:py-4 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:brightness-90 transition-all duration-300 transform flex items-center gap-2 group w-full sm:w-auto justify-center"
           >
             <span>{t("start")}</span>
             <ArrowRight
               size={20}
               className="transition-transform group-hover:translate-x-1"
             />
-          </button>
+          </motion.button>
         </motion.div>
       );
     }
 
     return (
       <motion.button
+        key="start"
         onClick={onStart}
         variants={item}
+        initial="hidden"
+        animate="visible"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         className="px-6 py-3 md:px-8 md:py-4 bg-[var(--primary-color)] text-white font-semibold rounded-xl shadow-lg hover:brightness-90 transition-all duration-300 transform flex items-center gap-2 group mx-auto md:mx-0"
@@ -143,7 +161,7 @@ const Landing: React.FC<LandingProps> = ({ onStart }) => {
           >
             {t("app_subtitle")}
           </motion.p>
-          {renderStartButton()}
+          <AnimatePresence mode="wait">{renderStartButton()}</AnimatePresence>
         </motion.div>
 
         {/* Right Visual Section */}
