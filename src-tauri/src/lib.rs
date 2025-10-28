@@ -4,6 +4,10 @@ use std::fs;
 use std::path::PathBuf;
 use base64::{engine::general_purpose, Engine as _};
 use std::process::Command as StdCommand;
+use serde::{Serialize};
+use sysinfo::{
+   Components, Disks, Networks, System, Users,
+};
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn run_shell_command_with_result(command: String) -> String {
@@ -20,6 +24,106 @@ fn get_system_user_info() -> String {
     format!("{{\"username\": \"{}\", \"realname\": \"{}\"}}", username, realname)
 }
 
+// --- Custom Structs for JSON Output (FIXED) ---
+
+#[derive(Serialize)]
+pub struct SystemData {
+    os_info: OsInfo,
+    boot_time_s: u64,
+    uptime_s: u64,
+    load_average: LoadAverage,
+    memory: MemoryInfo,
+    cpu: CpuSnapshot,
+    disks: Vec<DiskInfo>,
+    networks: Vec<NetworkData>,
+    processes: Vec<ProcessSnapshot>,
+    components: Vec<ComponentSnapshot>,
+    users: Vec<UserInfo>,
+}
+
+// ... OsInfo, LoadAverage, MemoryInfo structs remain the same ...
+// (omitted for brevity)
+
+#[derive(Serialize)]
+pub struct OsInfo {
+    name: String,
+    kernel_version: String,
+    os_version: String,
+    long_os_version: String,
+    host_name: String,
+}
+
+#[derive(Serialize)]
+pub struct LoadAverage {
+    one_min: f64,
+    five_min: f64,
+    fifteen_min: f64,
+}
+
+#[derive(Serialize)]
+pub struct MemoryInfo {
+    total_kb: u64,
+    available_kb: u64,
+    used_kb: u64,
+    total_swap_kb: u64,
+    used_swap_kb: u64,
+}
+
+#[derive(Serialize)]
+pub struct CpuSnapshot {
+    physical_cores: Option<usize>,
+    global_usage_percent: f32,
+    brand: String,
+    vendor_id: String,
+    individual_cpus: Vec<CpuDetails>,
+}
+
+#[derive(Serialize)]
+pub struct CpuDetails {
+    name: String,
+    usage_percent: f32,
+    frequency_mhz: u64, // FIX 1: Changed u66 to u64
+}
+
+#[derive(Serialize)]
+pub struct DiskInfo {
+    name: String,
+    mount_point: String,
+    total_gb: f64,
+    available_gb: f64,
+}
+
+#[derive(Serialize)]
+pub struct NetworkData {
+    interface_name: String,
+    mac_address: String,
+    received_bytes: u64,
+    total_received_bytes: u64,
+    transmitted_bytes: u64,
+    total_transmitted_bytes: u64,
+}
+
+#[derive(Serialize)]
+pub struct ProcessSnapshot {
+    pid: u32,
+    name: String,
+    status: String,
+    cpu_usage_percent: f32,
+}
+
+#[derive(Serialize)]
+pub struct ComponentSnapshot {
+    label: String,
+    temperature_c: f32, // Note: We'll use the main temp, but will still check for availability
+    max_c: f32,
+    critical_c: Option<f32>,
+}
+
+#[derive(Serialize)]
+pub struct UserInfo {
+    name: String,
+    groups: Vec<String>,
+}
 #[tauri::command]
 fn get_user_profile_photo_base64() -> Result<String, String> {
     // 1. Get the user's home directory
@@ -102,6 +206,130 @@ fn run_elevated_command(command_to_run: String) -> Result<String, String> {
     }
 }
 
+
+
+// Tauri command to get all system information as a JSON string
+#[tauri::command]
+fn get_system_info() -> Result<String, String> {
+    let mut sys = System::new();
+    sys.refresh_all(); // Refresh CPU, Memory, and Processes
+
+    let networks = Networks::new_with_refreshed_list();
+    let disks = Disks::new_with_refreshed_list();
+    let components = Components::new_with_refreshed_list();
+    let users = Users::new_with_refreshed_list();
+
+    // 2. Gather OS Info
+    let os_info = OsInfo {
+        name: System::name().unwrap_or_else(|| "<unknown>".to_owned()),
+        kernel_version: System::kernel_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        os_version: System::os_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        long_os_version: System::long_os_version().unwrap_or_else(|| "<unknown>".to_owned()),
+        host_name: System::host_name().unwrap_or_else(|| "<unknown>".to_owned()),
+    };
+
+    // 3. Gather Uptime and Load
+    let load_avg = System::load_average();
+    
+    // 4. Gather Memory Info
+    let memory = MemoryInfo {
+        total_kb: sys.total_memory() / 1_000,
+        available_kb: sys.available_memory() / 1_000,
+        used_kb: sys.used_memory() / 1_000,
+        total_swap_kb: sys.total_swap() / 1_000,
+        used_swap_kb: sys.used_swap() / 1_000,
+    };
+
+    // 5. Gather CPU Info
+    let individual_cpus: Vec<CpuDetails> = sys.cpus().iter().map(|cpu| CpuDetails {
+        name: cpu.name().to_string(),
+        usage_percent: cpu.cpu_usage(),
+        frequency_mhz: cpu.frequency(),
+    }).collect();
+
+    let cpu = CpuSnapshot {
+        physical_cores: System::physical_core_count(),
+        // FIX 2: Use the method suggested by the compiler: global_cpu_usage()
+        global_usage_percent: sys.global_cpu_usage(),
+        brand: sys.cpus()[0].brand().to_string(),
+        vendor_id: sys.cpus()[0].vendor_id().to_string(),
+        individual_cpus,
+    };
+
+    // 6. Gather Disk Info
+    let disks: Vec<DiskInfo> = disks.list().iter().map(|disk| DiskInfo {
+        name: disk.name().to_string_lossy().into_owned(), 
+        mount_point: disk.mount_point().to_string_lossy().into_owned(),
+        total_gb: disk.total_space() as f64 / 1024_f64.powi(3), 
+        available_gb: disk.available_space() as f64 / 1024_f64.powi(3),
+    }).collect();
+
+    // 7. Gather Network Info
+    let networks: Vec<NetworkData> = networks.list().iter().map(|(name, data)| NetworkData {
+        interface_name: name.clone(),
+        mac_address: data.mac_address().to_string(),
+        received_bytes: data.received(),
+        total_received_bytes: data.total_received(),
+        transmitted_bytes: data.transmitted(),
+        total_transmitted_bytes: data.total_transmitted(),
+    }).collect();
+
+    // 8. Gather Processes (Top 10 by CPU)
+    let mut processes_vec: Vec<_> = sys.processes().values().collect();
+    processes_vec.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
+    
+    let processes: Vec<ProcessSnapshot> = processes_vec.iter().take(10).map(|p| ProcessSnapshot {
+        pid: p.pid().as_u32(),
+        name: p.name().to_string_lossy().into_owned(), 
+        status: format!("{:?}", p.status()),
+        cpu_usage_percent: p.cpu_usage(),
+    }).collect();
+
+    // 9. Gather Components (Temperature)
+    let components: Vec<ComponentSnapshot> = components.iter().filter_map(|c| {
+        if let Some(temp) = c.temperature() {
+            Some(ComponentSnapshot {
+                label: c.label().to_string(),
+                temperature_c: temp, 
+                max_c: c.max().unwrap_or(0.0), 
+                critical_c: c.critical(),
+            })
+        } else {
+            None // Skip components without a temperature reading
+        }
+    }).collect();
+
+    // 10. Gather Users
+    let users: Vec<UserInfo> = users.list().iter().map(|u| UserInfo {
+        name: u.name().to_string(),
+        // FIX 3: Correctly use .name().to_string() for the group name (which is &str)
+        groups: u.groups().iter().map(|g| g.name().to_string()).collect(), 
+    }).collect();
+
+
+    // 11. Assemble the final data structure
+    let final_data = SystemData {
+        os_info,
+        boot_time_s: System::boot_time(),
+        uptime_s: System::uptime(),
+        load_average: LoadAverage {
+            one_min: load_avg.one,
+            five_min: load_avg.five,
+            fifteen_min: load_avg.fifteen,
+        },
+        memory,
+        cpu,
+        disks,
+        networks,
+        processes,
+        components,
+        users,
+    };
+
+    // 12. Serialize the data into a pretty JSON string
+    serde_json::to_string_pretty(&final_data).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -121,7 +349,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![run_shell_command_with_result,
             get_system_user_info,
             get_user_profile_photo_base64,
-            run_elevated_command])
+            run_elevated_command,
+            get_system_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

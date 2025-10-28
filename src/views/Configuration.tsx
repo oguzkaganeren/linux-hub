@@ -20,6 +20,10 @@ import PersonalizationPanel from "./configuration/PersonalizationPanel";
 import SystemMonitorPanel from "./configuration/SystemMonitorPanel";
 import LocalePanel from "./configuration/LocalePanel";
 import HardwarePanel from "./configuration/HardwarePanel";
+import ProcessesPanel from "./configuration/ProcessesPanel";
+import SensorsPanel from "./configuration/SensorsPanel";
+import NetworkPanel from "./configuration/NetworkPanel";
+import UsersPanel from "./configuration/UsersPanel";
 
 const Configuration: React.FC = () => {
   const [activePanel, setActivePanel] = useState<ConfigPanel>("home");
@@ -78,11 +82,14 @@ const Configuration: React.FC = () => {
   const menuItems: { id: ConfigPanel; name: string; icon: string }[] = [
     { id: "home", name: t("home"), icon: "home" },
     { id: "system", name: t("system_info"), icon: "system" },
+    { id: "monitor", name: t("system_monitor"), icon: "monitor" },
+    { id: "processes", name: t("processes"), icon: "processes" },
+    { id: "sensors", name: t("sensors"), icon: "sensors" },
     { id: "kernel", name: t("kernel"), icon: "kernel" },
     { id: "hardware", name: t("hardware_configuration"), icon: "hardware" },
-    { id: "monitor", name: t("system_monitor"), icon: "monitor" },
     { id: "devices", name: t("devices"), icon: "devices" },
-    { id: "network", name: t("mirrors"), icon: "network" },
+    { id: "network", name: t("network_info"), icon: "network" },
+    { id: "mirrors", name: t("mirrors"), icon: "mirrors" },
     { id: "updates", name: t("updates"), icon: "updates" },
     { id: "storage", name: t("storage"), icon: "storage" },
     {
@@ -90,6 +97,7 @@ const Configuration: React.FC = () => {
       name: t("personalization"),
       icon: "personalization",
     },
+    { id: "users", name: t("users"), icon: "users" },
     { id: "locale", name: t("locale_settings"), icon: "locale" },
   ];
 
@@ -105,9 +113,15 @@ const Configuration: React.FC = () => {
         return <HardwarePanel />;
       case "monitor":
         return <SystemMonitorPanel />;
+      case "processes":
+        return <ProcessesPanel />;
+      case "sensors":
+        return <SensorsPanel />;
       case "devices":
         return <DevicesPanel />;
       case "network":
+        return <NetworkPanel />;
+      case "mirrors":
         return <MirrorsPanel />;
       case "updates":
         return <UpdatesPanel />;
@@ -115,6 +129,8 @@ const Configuration: React.FC = () => {
         return <StoragePanel />;
       case "personalization":
         return <PersonalizationPanel />;
+      case "users":
+        return <UsersPanel />;
       case "locale":
         return <LocalePanel />;
       default:
