@@ -16,27 +16,27 @@ pub struct HardwareInfo {
 }
 
 /* ---------- GPU ---------- */
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]   // <-- added Clone
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GpuInfo {
-    pub vendor: String,
+    pub vendor: String,               // e.g. "10DE"
     pub model: String,
-    pub driver_type: String,          // "proprietary" | "open_source" | "unknown"
-    pub driver_module: String,        // kernel module name
-    pub in_use: bool,                 // true if this GPU is the one currently rendering
+    pub driver_type: String,
+    pub driver_module: String,
+    pub in_use: bool,
 }
 
 /* ---------- Network ---------- */
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct NetworkCardInfo {
-    pub vendor: String,
+    pub vendor: String,               // e.g. "8086"
     pub model: String,
-    pub device: String,
+    pub device: String,               // e.g. "[8086:15f3]"
 }
 
 /* ---------- Driver packages ---------- */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DriverPackageInfo {
-    pub r#type: String,               // "proprietary" | "open_source"
+    pub r#type: String,
     pub packages: Vec<String>,
     pub instructions: String,
     pub wiki_url: String,
@@ -66,7 +66,7 @@ pub fn get_hardware_info() -> Result<HardwareInfo, String> {
 
     // ---------- 1. PCI devices ----------
     let lspci = run_cmd("lspci", &["-nnk"])?;
-    let pci_lines = lspci.lines().map(|s| s.to_string()).collect::<Vec<_>>(); // <-- no mut
+    let pci_lines = lspci.lines().map(|s| s.to_string()).collect::<Vec<_>>();
 
     // ---------- 2. Loaded kernel modules ----------
     let lsmod = run_cmd("lsmod", &[])?;
@@ -79,7 +79,7 @@ pub fn get_hardware_info() -> Result<HardwareInfo, String> {
     let renderer = detect_current_renderer();
 
     // ---------- 4. Parse GPUs ----------
-    let gpus = parse_gpus(&pci_lines, &loaded_modules, &renderer); // <-- no mut
+    let gpus = parse_gpus(&pci_lines, &loaded_modules, &renderer);
     info.gpus = gpus;
 
     // ---------- 5. Hybrid detection ----------
@@ -99,14 +99,13 @@ pub fn get_hardware_info() -> Result<HardwareInfo, String> {
 /* ----------------------------------------------------------------- */
 fn parse_gpus(
     lines: &[String],
-    loaded: &HashSet<String>,
+    _loaded: &HashSet<String>,
     renderer: &str,
 ) -> Vec<GpuInfo> {
     let mut gpus = Vec::new();
     let mut cur: Option<GpuInfo> = None;
 
     for line in lines {
-        // VGA or 3D controller line
         if line.contains("VGA compatible controller") || line.contains("3D controller") {
             let (vendor, model) = extract_pci_info(line);
             cur = Some(GpuInfo {
@@ -117,7 +116,6 @@ fn parse_gpus(
                 in_use: false,
             });
         }
-        // "Kernel driver in use: …"
         else if let Some(ref mut gpu) = cur {
             if line.contains("Kernel driver in use:") {
                 let module = line.split(':').nth(1).unwrap_or("").trim().to_string();
@@ -128,12 +126,11 @@ fn parse_gpus(
                     "open_source".to_string()
                 };
 
-                // mark as currently rendering
                 if renderer.contains(&module) || renderer.contains(&gpu.vendor) {
                     gpu.in_use = true;
                 }
 
-                gpus.push(gpu.clone());   // <-- now works
+                gpus.push(gpu.clone());
                 cur = None;
             }
         }
@@ -147,9 +144,9 @@ fn detect_hybrid(gpus: &[GpuInfo], loaded: &HashSet<String>) -> Option<HybridInf
     let mut discrete = None;
 
     for g in gpus {
-        if g.vendor.contains(INTEL_VENDOR) {
+        if g.vendor.eq_ignore_ascii_case(INTEL_VENDOR) {
             intel = Some(g);
-        } else if g.vendor.contains(NVIDIA_VENDOR) || g.vendor.contains(AMD_VENDOR) {
+        } else if g.vendor.eq_ignore_ascii_case(NVIDIA_VENDOR) || g.vendor.eq_ignore_ascii_case(AMD_VENDOR) {
             discrete = Some(g);
         }
     }
@@ -160,7 +157,6 @@ fn detect_hybrid(gpus: &[GpuInfo], loaded: &HashSet<String>) -> Option<HybridInf
         return None;
     };
 
-    // Detect switch method
     let mut method = "none".to_string();
     if loaded.contains("nvidia") {
         if Command::new("prime-run").arg("--version").output().is_ok() {
@@ -170,7 +166,7 @@ fn detect_hybrid(gpus: &[GpuInfo], loaded: &HashSet<String>) -> Option<HybridInf
         }
     }
 
-    let rec = if primary.vendor.contains(NVIDIA_VENDOR) {
+    let rec = if primary.vendor.eq_ignore_ascii_case(NVIDIA_VENDOR) {
         "PRIME (nvidia-prime)".to_string()
     } else {
         "Intel iGPU (default)".to_string()
@@ -255,7 +251,7 @@ fn populate_driver_catalog(info: &mut HardwareInfo) {
         wiki_url: "https://wiki.archlinux.org/title/Intel_graphics".to_string(),
         variants: vec![],
     };
-    info.driver_packages.insert("Intel".to_string(), intel);
+    info.driver_packages.insert("Intel".to_string(), intel); // <-- FIXED
 }
 
 /* ----------------------------------------------------------------- */
@@ -286,15 +282,32 @@ fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
 
 /* ----------------------------------------------------------------- */
 fn extract_pci_info(line: &str) -> (String, String) {
-    let vendor = line
+    // Example line:
+    // 00:02.0 VGA compatible controller [0300]: Intel Corporation HD Graphics 530 [8086:191b] (rev 06)
+    let after_class = line.split(']').nth(1).unwrap_or(line);
+
+    // ---- VENDOR ----
+    let vendor = after_class
         .split('[')
         .nth(1)
         .and_then(|s| s.split(':').next())
-        .unwrap_or("????")
-        .to_uppercase();
-    let model = line.split(':').nth(2).unwrap_or("").trim().to_string();
+        .map(|s| s.trim().to_uppercase())
+        .unwrap_or("????".to_string());
+
+    // ---- MODEL (strip [vendor:device] at the end) ----
+    let model = after_class
+        .split(": ")
+        .nth(1)
+        .unwrap_or("")
+        .split('[')               // <-- NEW: cut off at first '['
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
     (vendor, model)
 }
+
 fn extract_device_id(line: &str) -> String {
     line.split('[')
         .nth(1)

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Check, ExternalLink } from "lucide-react";
+import { ChevronDown, Check, ExternalLink, Info } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 
@@ -10,16 +10,26 @@ import AppIcon from "../../components/icons";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { install } from "../../store/packagesSlice";
 import { translations } from "../../data/translations";
-import { HardwareInfo, Gpu, DriverPackage, DriverVariant } from "../../types";
+import {
+  HardwareInfo,
+  Gpu,
+  DriverPackage,
+  DriverVariant,
+  PackageStatus,
+  NetworkCard,
+  OtherCard,
+} from "../../types";
 
 const VENDOR_MAP: Record<string, { name: string; icon: string }> = {
   "8086": { name: "Intel", icon: "intel" },
   "10de": { name: "NVIDIA", icon: "nvidia" },
   "1002": { name: "AMD", icon: "amd" },
+  "10ec": { name: "Realtek", icon: "network" }, // Added for network card
 };
 
 const GpuCard: React.FC<{ gpu: Gpu }> = ({ gpu }) => {
-  const vendorInfo = VENDOR_MAP[gpu.vendor.toLowerCase()] || {
+  const vendorId = gpu.vendor.startsWith("10de") ? "10de" : gpu.vendor; // Handle NVIDIA model name in vendor
+  const vendorInfo = VENDOR_MAP[vendorId.toLowerCase()] || {
     name: gpu.vendor,
     icon: "hardware",
   };
@@ -50,55 +60,174 @@ const GpuCard: React.FC<{ gpu: Gpu }> = ({ gpu }) => {
 const DriverVariantRow: React.FC<{
   variant: DriverVariant;
   isActive: boolean;
-  onInstall: (packages: string[]) => void;
-}> = ({ variant, isActive, onInstall }) => (
-  <div
-    className={`flex justify-between items-center p-3 rounded-md transition-colors ${
-      isActive
-        ? "bg-[var(--primary-color)]/10"
-        : "hover:bg-gray-100/50 dark:hover:bg-gray-800/20"
-    }`}
-  >
-    <div>
-      <p className="font-semibold">{variant.name}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-        {variant.packages.join(" ")}
-      </p>
-    </div>
-    <div className="flex items-center gap-2">
-      {isActive ? (
-        <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 font-semibold">
-          <Check size={16} />
-          <span>Active</span>
+}> = ({ variant, isActive }) => {
+  const dispatch = useAppDispatch();
+  const language = useAppSelector((state) => state.app.language);
+  const packagesState = useAppSelector((state) => state.packages.packagesState);
+
+  const t = useCallback(
+    (key: string): string => {
+      return translations[language]?.[key] || translations["en"]?.[key] || key;
+    },
+    [language]
+  );
+
+  const handleInstall = (packages: string[]) => {
+    packages.forEach((pkg) => dispatch(install(pkg)));
+  };
+
+  const getVariantStatus = () => {
+    let isInstalling = false;
+    let isError = false;
+    let progress = 0;
+    let installingCount = 0;
+
+    if (!variant.packages || variant.packages.length === 0) {
+      return { status: "not-installed" };
+    }
+
+    for (const pkg of variant.packages) {
+      const state = packagesState[pkg];
+      if (state?.status === PackageStatus.Installing) {
+        isInstalling = true;
+        progress += state.progress || 0;
+        installingCount++;
+      }
+      if (state?.status === PackageStatus.Error) {
+        isError = true;
+      }
+    }
+
+    if (isInstalling) {
+      return {
+        status: "installing",
+        progress: installingCount > 0 ? progress / installingCount : 0,
+      };
+    }
+    if (isError) {
+      return { status: "error" };
+    }
+    if (isActive) {
+      return { status: "installed" };
+    }
+    return { status: "not-installed" };
+  };
+
+  const variantStatus = getVariantStatus();
+
+  const renderButton = () => {
+    switch (variantStatus.status) {
+      case "installed":
+        return (
+          <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 font-semibold">
+            <Check size={16} />
+            <span>{t("installed")}</span>
+          </div>
+        );
+      case "installing":
+        return (
+          <div className="w-full text-center">
+            <div className="w-full bg-gray-300/50 dark:bg-gray-700/50 rounded-full h-2">
+              <motion.div
+                className="bg-[var(--primary-color)] h-2 rounded-full"
+                animate={{ width: `${variantStatus.progress || 0}%` }}
+                transition={{ duration: 0.3, ease: "linear" }}
+              />
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+              {t("installing")}
+            </p>
+          </div>
+        );
+      case "error":
+        return (
+          <button
+            onClick={() => handleInstall(variant.packages)}
+            className="px-4 py-1.5 text-sm bg-red-500 text-white font-semibold rounded-md hover:bg-red-600 transition-colors"
+          >
+            {t("retry")}
+          </button>
+        );
+      default: // 'not-installed'
+        return (
+          <button
+            onClick={() => handleInstall(variant.packages)}
+            className="px-4 py-1.5 text-sm bg-[var(--primary-color)] text-white font-semibold rounded-md hover:brightness-90 transition-all"
+          >
+            {t("install")}
+          </button>
+        );
+    }
+  };
+
+  return (
+    <div
+      className={`flex justify-between items-center p-3 rounded-md transition-colors ${
+        isActive
+          ? "bg-[var(--primary-color)]/10"
+          : "hover:bg-gray-100/50 dark:hover:bg-gray-800/20"
+      }`}
+    >
+      <div className="flex-grow pr-4 overflow-hidden">
+        <div className="flex items-center gap-2">
+          <p className="font-semibold">{variant.name}</p>
+          {variant.instructions && (
+            <div className="relative group">
+              <Info
+                size={14}
+                className="text-gray-400 dark:text-gray-500 cursor-help"
+              />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {variant.instructions}
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <button
-          onClick={() => onInstall(variant.packages)}
-          className="px-4 py-1.5 text-sm bg-[var(--primary-color)] text-white font-semibold rounded-md hover:brightness-90 transition-all"
+        <p
+          className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate"
+          title={variant.packages.join(" ")}
         >
-          Install
-        </button>
-      )}
+          {variant.packages.join(" ")}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {variant.wiki_url && (
+          <a
+            href={variant.wiki_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.stopPropagation();
+              open(variant.wiki_url!);
+            }}
+            className="p-1.5 rounded-full text-gray-500 hover:text-[var(--primary-color)] transition-colors"
+            title={`Open Wiki for ${variant.name}`}
+          >
+            <ExternalLink size={16} />
+          </a>
+        )}
+        <div className="w-24 flex justify-end">{renderButton()}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const VendorDriversCard: React.FC<{
   vendor: string;
   driverPackage: DriverPackage;
   gpus: Gpu[];
-}> = ({ vendor, driverPackage, gpus }) => {
-  const dispatch = useAppDispatch();
+}> = ({ vendor, driverPackage }) => {
+  const packagesState = useAppSelector((state) => state.packages.packagesState);
   const [isExpanded, setIsExpanded] = useState(true);
-  const vendorGpus = gpus.filter(
-    (g) => (VENDOR_MAP[g.vendor.toLowerCase()]?.name || g.vendor) === vendor
-  );
-  const activeModule = vendorGpus.find((g) => g.in_use)?.driver_module;
 
-  const handleInstall = (packages: string[]) => {
-    // In a real scenario, you might want to confirm with the user first
-    // and handle dependencies or conflicts.
-    packages.forEach((pkg) => dispatch(install(pkg)));
+  const isVariantInstalled = (variant: DriverVariant) => {
+    if (!variant.packages || variant.packages.length === 0) {
+      return false;
+    }
+    return variant.packages.every((pkg) => {
+      const state = packagesState[pkg];
+      return state?.status === PackageStatus.Installed;
+    });
   };
 
   return (
@@ -157,18 +286,46 @@ const VendorDriversCard: React.FC<{
                 <DriverVariantRow
                   key={variant.name}
                   variant={variant}
-                  // A simple heuristic to check if the driver is active
-                  isActive={
-                    !!activeModule &&
-                    variant.packages.some((p) => p.includes(activeModule))
-                  }
-                  onInstall={handleInstall}
+                  isActive={isVariantInstalled(variant)}
                 />
               ))}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+const NetworkCardComponent: React.FC<{ card: NetworkCard }> = ({ card }) => {
+  const vendorInfo = VENDOR_MAP[card.vendor.toLowerCase()] || {
+    name: card.vendor,
+    icon: "network",
+  };
+  return (
+    <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-100/80 dark:hover:bg-gray-700/50">
+      <AppIcon
+        name={vendorInfo.icon}
+        className="w-10 h-10 text-gray-600 dark:text-gray-400 flex-shrink-0"
+      />
+      <div className="flex-grow overflow-hidden">
+        <p className="font-semibold text-gray-800 dark:text-gray-200 truncate">
+          {card.model}
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Vendor: {vendorInfo.name} ({card.vendor})
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const OtherCardComponent: React.FC<{ card: OtherCard }> = ({ card }) => {
+  return (
+    <div className="p-2 rounded-lg hover:bg-gray-100/80 dark:hover:bg-gray-700/50">
+      <p className="text-xs font-mono text-gray-600 dark:text-gray-400">
+        {card.raw}
+      </p>
     </div>
   );
 };
@@ -239,13 +396,19 @@ const HardwarePanel: React.FC = () => {
       );
     }
 
+    const detectedVendors = new Set(
+      hardwareInfo.gpus.map(
+        (gpu) => VENDOR_MAP[gpu.vendor.toLowerCase()]?.name || gpu.vendor
+      )
+    );
+
     return (
       <div className="space-y-6">
         <BlurredCard className="p-4 md:p-6">
           <h2 className="text-xl font-bold mb-4">Detected GPUs</h2>
           <div className="space-y-2">
             {hardwareInfo.gpus.map((gpu) => (
-              <GpuCard key={gpu.model} gpu={gpu} />
+              <GpuCard key={`${gpu.vendor}-${gpu.model}`} gpu={gpu} />
             ))}
           </div>
         </BlurredCard>
@@ -267,18 +430,41 @@ const HardwarePanel: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold mb-4">Available Drivers</h2>
           <div className="space-y-4">
-            {Object.entries(hardwareInfo.driver_packages).map(
-              ([vendor, pkg]) => (
+            {Object.entries(hardwareInfo.driver_packages)
+              .filter(([vendor]) => detectedVendors.has(vendor))
+              .map(([vendor, pkg]) => (
                 <VendorDriversCard
                   key={vendor}
                   vendor={vendor}
                   driverPackage={pkg}
                   gpus={hardwareInfo.gpus}
                 />
-              )
-            )}
+              ))}
           </div>
         </div>
+
+        {hardwareInfo.network_cards &&
+          hardwareInfo.network_cards.length > 0 && (
+            <BlurredCard className="p-4 md:p-6">
+              <h2 className="text-xl font-bold mb-4">Network Cards</h2>
+              <div className="space-y-2">
+                {hardwareInfo.network_cards.map((card) => (
+                  <NetworkCardComponent key={card.model} card={card} />
+                ))}
+              </div>
+            </BlurredCard>
+          )}
+
+        {hardwareInfo.other_cards && hardwareInfo.other_cards.length > 0 && (
+          <BlurredCard className="p-4 md:p-6">
+            <h2 className="text-xl font-bold mb-4">Other Hardware</h2>
+            <div className="space-y-1 max-h-64 overflow-y-auto pr-2">
+              {hardwareInfo.other_cards.map((card, index) => (
+                <OtherCardComponent key={index} card={card} />
+              ))}
+            </div>
+          </BlurredCard>
+        )}
       </div>
     );
   };

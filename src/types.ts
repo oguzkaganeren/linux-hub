@@ -5,7 +5,7 @@
 // to store detailed error information.
 export type Page = 'landing' | 'home' | 'packages' | 'configuration' | 'about';
 
-export type ConfigPanel = 'home'|'system' | 'kernel' | 'mirrors' | 'updates' | 'storage' | 'personalization' | 'monitor' | 'devices' | 'locale' | 'hardware' | 'processes' | 'sensors' | 'network' | 'users';
+export type ConfigPanel = 'home' | 'system' | 'kernel' | 'mirrors' | 'updates' | 'storage' | 'personalization' | 'monitor' | 'devices' | 'locale' | 'hardware' | 'processes' | 'sensors' | 'network' | 'users';
 
 export interface App {
   name: string;
@@ -48,10 +48,10 @@ export interface Theme {
 }
 
 export interface Kernel {
-    version: string;
-    releaseType: 'stable' | 'lts' | 'recommended';
-    running?: boolean;
-    pkg: string;
+  version: string;
+  releaseType: 'stable' | 'lts' | 'recommended';
+  running?: boolean;
+  pkg: string;
 }
 
 export interface UserProfile {
@@ -61,15 +61,15 @@ export interface UserProfile {
 }
 
 export interface BluetoothDevice {
-    id: string;
-    name: string;
-    status: 'Connected' | 'Disconnected';
+  id: string;
+  name: string;
+  status: 'Connected' | 'Disconnected';
 }
 
 export interface PrinterDevice {
-    id: string;
-    name: string;
-    status: 'Ready' | 'Offline' | 'Printing';
+  id: string;
+  name: string;
+  status: 'Ready' | 'Offline' | 'Printing';
 }
 
 export interface SystemLocale {
@@ -80,35 +80,49 @@ export interface SystemLocale {
 // --- Hardware Info Types ---
 
 export interface Gpu {
-    vendor: string;
-    model: string;
-    driver_type: 'open_source' | 'proprietary';
-    driver_module: string;
-    in_use: boolean;
+  vendor: string;
+  model: string;
+  driver_type: 'open_source' | 'proprietary';
+  driver_module: string;
+  in_use: boolean;
 }
 
 export interface HybridInfo {
-    primary: string;
-    secondary: string;
-    switch_method: string;
-    recommended_variant: string;
+  primary: string;
+  secondary: string;
+  switch_method: string;
+  recommended_variant: string;
 }
 
 export interface DriverVariant {
-    name: string;
-    packages: string[];
+  name: string;
+  packages: string[];
+  instructions?: string;
+  wiki_url?: string;
 }
 
 export interface DriverPackage {
-    type: 'proprietary' | 'open_source';
-    packages: string[];
-    instructions: string;
-    wiki_url: string;
-    variants: DriverVariant[];
+  type: 'proprietary' | 'open_source';
+  packages: string[];
+  instructions: string;
+  wiki_url: string;
+  variants: DriverVariant[];
+}
+
+export interface NetworkCard {
+  vendor: string;
+  model: string;
+  device: string;
+}
+
+export interface OtherCard {
+  raw: string;
 }
 
 export interface HardwareInfo {
-    gpus: Gpu[];
-    hybrid: HybridInfo | null;
-    driver_packages: Record<string, DriverPackage>;
+  gpus: Gpu[];
+  network_cards: NetworkCard[];
+  other_cards: OtherCard[];
+  hybrid: HybridInfo | null;
+  driver_packages: Record<string, DriverPackage>;
 }
