@@ -9,6 +9,14 @@ mod pacman_manager;
 use sysinfo::{
    Components, Disks, Networks, System, Users,
 };
+mod hardware;
+use hardware::get_hardware_info;
+
+#[tauri::command]
+async fn hardware_info() -> Result<String, String> {
+    let info = get_hardware_info()?;
+    serde_json::to_string(&info).map_err(|e| e.to_string())
+}
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn run_shell_command_with_result(command: String) -> String {
@@ -527,6 +535,7 @@ pub fn run() {
             get_user_profile_photo_base64,
             run_elevated_command,
             get_system_info,
+            hardware_info,
             pacman_manager::manage_pacman_package,
             pacman_manager::check_package_status,
             pacman_manager::check_system_updates,

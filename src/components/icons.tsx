@@ -75,7 +75,8 @@ const AppIcon: React.FC<AppIconProps> = ({ name, className }) => {
 
     // Hardware/Driver Icons (using generic fallbacks as brand icons are not in lucide)
     intel: <Cpu className={className} />,
-    nvidia: <Cpu className={className} />, // Using CPU as a stand-in for a GPU/chip icon
+    nvidia: <Cpu className={className} />,
+    amd: <Cpu className={className} />,
     "video-linux": <TerminalSquare className={className} />,
 
     // Categories

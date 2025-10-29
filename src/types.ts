@@ -76,3 +76,39 @@ export interface SystemLocale {
   id: string; // e.g., 'en_US.UTF-8'
   name: string; // e.g., 'English (United States)'
 }
+
+// --- Hardware Info Types ---
+
+export interface Gpu {
+    vendor: string;
+    model: string;
+    driver_type: 'open_source' | 'proprietary';
+    driver_module: string;
+    in_use: boolean;
+}
+
+export interface HybridInfo {
+    primary: string;
+    secondary: string;
+    switch_method: string;
+    recommended_variant: string;
+}
+
+export interface DriverVariant {
+    name: string;
+    packages: string[];
+}
+
+export interface DriverPackage {
+    type: 'proprietary' | 'open_source';
+    packages: string[];
+    instructions: string;
+    wiki_url: string;
+    variants: DriverVariant[];
+}
+
+export interface HardwareInfo {
+    gpus: Gpu[];
+    hybrid: HybridInfo | null;
+    driver_packages: Record<string, DriverPackage>;
+}
