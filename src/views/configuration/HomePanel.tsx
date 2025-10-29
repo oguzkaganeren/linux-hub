@@ -8,14 +8,26 @@ import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { setPrimaryColor } from "../../store/themeSlice";
 import { install } from "../../store/packagesSlice";
 import { translations } from "../../data/translations";
-import { ConfigPanel, PackageStatus } from "../../types";
-import { kernels, colors } from "../../data/config";
+import { ConfigPanel, PackageStatus, Kernel } from "../../types";
+import { colors } from "../../data/config";
 
 interface DiskInfo {
   name: string;
   mount_point: string;
   total_gb: number;
   available_gb: number;
+}
+
+interface UpdateInfo {
+  updates_available: boolean;
+  pending_updates_count: number;
+  last_update_date: string | null;
+}
+
+interface InstalledKernel {
+  name: string;
+  version: string;
+  flavor: string;
 }
 
 const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
@@ -31,6 +43,8 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
     name: "Ethernet",
     status: "Connected",
   });
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [kernels, setKernels] = useState<Kernel[]>([]);
   const [loading, setLoading] = useState(true);
 
   const t = useCallback(
@@ -47,22 +61,37 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
     [language]
   );
 
+  const formatLastCheck = useCallback(
+    (dateString: string | null) => {
+      if (!dateString) return "never";
+      try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffSeconds = (now.getTime() - date.getTime()) / 1000;
+        if (diffSeconds < 60) return "just now";
+        if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+        if (diffSeconds < 86400)
+          return `${Math.floor(diffSeconds / 3600)}h ago`;
+        return date.toLocaleDateString(language);
+      } catch (e) {
+        return "unknown";
+      }
+    },
+    [language]
+  );
+
   useEffect(() => {
     const fetchSystemInfo = async () => {
-      // Add a small delay to make the skeleton visible for demo purposes
       await new Promise((resolve) => setTimeout(resolve, 1000));
       try {
+        // System Info
         const infoString: string = await invoke("get_system_info");
         const infoData = JSON.parse(infoString);
 
-        if (infoData.disks && Array.isArray(infoData.disks)) {
+        if (infoData.disks && Array.isArray(infoData.disks))
           setDisks(infoData.disks);
-        }
-
-        if (infoData.os_info && infoData.os_info.host_name) {
+        if (infoData.os_info && infoData.os_info.host_name)
           setHostname(infoData.os_info.host_name);
-        }
-
         if (infoData.networks && Array.isArray(infoData.networks)) {
           const activeNetwork = infoData.networks.find(
             (n: any) => n.interface_name !== "lo" && n.total_received_bytes > 0
@@ -79,6 +108,43 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
             });
           }
         }
+
+        // Update Info
+        const updateResultJson: string = await invoke("check_system_updates");
+        const updateResult = JSON.parse(updateResultJson);
+        if (updateResult.check_success) {
+          setUpdateInfo({
+            updates_available: updateResult.updates_available,
+            pending_updates_count: updateResult.pending_updates_count,
+            last_update_date: updateResult.last_update_date,
+          });
+        }
+
+        // Kernel Info
+        const kernelResult: string = await invoke("get_system_kernels");
+        const kernelData = JSON.parse(kernelResult);
+        const runningVersion = kernelData.running_kernel;
+        const kernelMap = new Map<string, Kernel>();
+        (kernelData.installed_kernels as InstalledKernel[]).forEach((k) => {
+          let releaseType: Kernel["releaseType"] = "stable";
+          if (k.flavor === "lts") releaseType = "lts";
+          const key = `${k.name}-${k.version}`;
+          kernelMap.set(key, {
+            version: k.version,
+            pkg: k.name,
+            releaseType,
+            running: k.version === runningVersion,
+          });
+        });
+        const combinedKernels = Array.from(kernelMap.values());
+        combinedKernels.sort((a, b) => {
+          if (a.running) return -1;
+          if (b.running) return 1;
+          return b.version.localeCompare(a.version, undefined, {
+            numeric: true,
+          });
+        });
+        setKernels(combinedKernels);
       } catch (err) {
         console.error("Failed to fetch system info for home panel:", err);
       } finally {
@@ -108,7 +174,6 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
         <div className="h-10 bg-gray-300 dark:bg-gray-700 rounded-md w-1/3 mb-6"></div>
 
         <div className="bg-gray-200/80 dark:bg-gray-800/50 rounded-xl p-6 mb-6 flex flex-col md:flex-row items-start md:items-center md:justify-between gap-6 md:gap-4 min-h-[96px]">
-          {/* Header Card Skeleton x3 */}
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 flex-1">
               <div className="w-6 h-6 bg-gray-300 dark:bg-gray-700 rounded"></div>
@@ -121,7 +186,6 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Blurred Card Skeleton x4 */}
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
@@ -140,6 +204,13 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
     );
   }
 
+  const updateTitle = updateInfo?.updates_available
+    ? t("updates_available_header", { count: updateInfo.pending_updates_count })
+    : t("system_up_to_date");
+  const updateSubtitle = `${t("last_check")}: ${formatLastCheck(
+    updateInfo?.last_update_date
+  )}`;
+
   return (
     <>
       <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-100 mb-6">
@@ -153,11 +224,16 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
           title={networkInfo.name}
           subtitle={networkInfo.status}
         />
-        <HeaderCard
-          icon="updates"
-          title={t("system_up_to_date")}
-          subtitle={t("last_check")}
-        />
+        <div
+          onClick={() => setActivePanel("updates")}
+          className="flex-1 cursor-pointer p-2 -m-2 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
+        >
+          <HeaderCard
+            icon="updates"
+            title={updateTitle}
+            subtitle={updateSubtitle}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

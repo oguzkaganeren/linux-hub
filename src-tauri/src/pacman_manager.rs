@@ -6,12 +6,16 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
 use serde_json::json;
+use tokio::fs::File;
+use chrono::{DateTime, Utc};
+use futures::future;
 
 // -----------------------------------------------------------------------------
 // Configuration
 // -----------------------------------------------------------------------------
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(300); // 5 min per pacman op
 const BATCH_TIMEOUT: Duration = Duration::from_secs(60);    // per package check
+const PACMAN_LOG_PATH: &str = "/var/log/pacman.log"; // Standard path for pacman log
 
 // -----------------------------------------------------------------------------
 // Data structures
@@ -38,6 +42,16 @@ pub struct PackageStatus {
     pub current_version: Option<String>,
     pub available_update: bool,
     pub latest_version: Option<String>,
+    pub check_success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SystemUpdateStatus {
+    pub updates_available: bool,
+    pub pending_updates_count: usize,
+    // ISO 8601 formatted String from chrono
+    pub last_update_date: Option<String>, 
     pub check_success: bool,
     pub message: String,
 }
@@ -119,13 +133,14 @@ pub async fn manage_pacman_package(
     operation: String,
     package_name: Option<String>,
 ) -> String {
-    // Keep the original for the JSON result
+    // Note: The logic for "update" here is now primarily handled by run_system_update,
+    // but kept here for backward compatibility/simplicity of single package update if needed.
+    
     let original_pkg = package_name.clone();
 
-    // Owned string that lives for the whole function
-    let pkg_owned: String = match package_name {
+    let pkg_owned: String = match package_name.clone() {
         Some(p) => p,
-        None => {
+        None if operation.as_str() != "update" => {
             return json!(PacmanResult {
                 success: false,
                 message: "Package name required for install/remove.".into(),
@@ -133,7 +148,8 @@ pub async fn manage_pacman_package(
                 package_name: None,
             })
             .to_string();
-        }
+        },
+        _ => String::new(), // Allows update operation without pkg name
     };
 
     let (program, args_vec, op_desc): (&str, Vec<&str>, &str) = match operation.as_str() {
@@ -304,7 +320,7 @@ pub async fn check_packages_status(
     });
 
     // ---- Collect all results ------------------------------------------------
-    let results = futures::future::join_all(tasks).await;
+    let results = future::join_all(tasks).await;
 
     let mut final_results = Vec::with_capacity(results.len());
     for res in results {
@@ -331,4 +347,116 @@ pub async fn check_packages_status(
 #[tauri::command]
 pub async fn check_package_status(app_handle: AppHandle, package_name: String) -> String {
     check_packages_status(app_handle, vec![package_name]).await
+}
+
+// -----------------------------------------------------------------------------
+// Helper: Get Last Update Date with Chrono
+// -----------------------------------------------------------------------------
+async fn get_last_update_date(app_handle: &AppHandle) -> Option<String> {
+    emit_progress(app_handle, "LAST_UPDATE", &format!("Reading log file: {}", PACMAN_LOG_PATH));
+    
+    let file = match File::open(PACMAN_LOG_PATH).await {
+        Ok(f) => f,
+        Err(e) => {
+            emit_progress(app_handle, "LOG_ERROR", &format!("Failed to open log: {}", e));
+            return None;
+        }
+    };
+
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+    let mut last_date_time: Option<DateTime<Utc>> = None;
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        if line.contains("[ALPM] transaction completed") {
+            if let Some(start) = line.find('[') {
+                if let Some(end) = line.find(']') {
+                    let timestamp_str = &line[start + 1..end];
+                    
+                    match DateTime::parse_from_str(timestamp_str, "%Y-%m-%dT%H:%M:%S%#z") {
+                        Ok(dt) => {
+                            last_date_time = Some(dt.with_timezone(&Utc));
+                        },
+                        Err(e) => {
+                            emit_progress(app_handle, "DATE_PARSE_ERROR", &format!("Failed to parse date '{}': {}", timestamp_str, e));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if let Some(dt) = last_date_time {
+        let formatted_date = dt.to_rfc3339();
+        emit_progress(app_handle, "LAST_UPDATE", &format!("Found last update: {}", formatted_date));
+        Some(formatted_date)
+    } else {
+        emit_progress(app_handle, "LAST_UPDATE", "No successful system update entry found in log.");
+        None
+    }
+}
+
+// -----------------------------------------------------------------------------
+// TAURI COMMAND: Check System Updates
+// -----------------------------------------------------------------------------
+#[tauri::command]
+pub async fn check_system_updates(app_handle: AppHandle) -> String {
+    emit_progress(&app_handle, "SYSTEM_UPDATE_CHECK", "Starting system update check...");
+
+    let mut status = SystemUpdateStatus {
+        updates_available: false,
+        pending_updates_count: 0,
+        last_update_date: None,
+        check_success: true,
+        message: "Check successful.".into(),
+    };
+
+    // --- 1. Check for available updates (`pacman -Qu`) ---
+    emit_progress(&app_handle, "UPDATES_AVAILABLE", "Running pacman -Qu...");
+    
+    match timeout(Duration::from_secs(15), Command::new("pacman").args(["-Qu"]).output()).await {
+        Ok(Ok(output)) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            
+            let updates_count = stdout.lines().filter(|l| !l.trim().is_empty()).count();
+            
+            status.pending_updates_count = updates_count;
+            status.updates_available = updates_count > 0;
+            
+            if status.updates_available {
+                status.message = format!("{} updates are available.", updates_count);
+                emit_progress(&app_handle, "UPDATES_AVAILABLE", &status.message);
+            } else {
+                status.message = "System is up to date.".into();
+                emit_progress(&app_handle, "UPDATES_AVAILABLE", &status.message);
+            }
+        }
+        Ok(Err(e)) => {
+            status.check_success = false;
+            status.message = format!("Failed to run 'pacman -Qu': {}", e);
+            emit_progress(&app_handle, "ERROR", &status.message);
+        }
+        Err(_) => {
+            status.check_success = false;
+            status.message = "Command 'pacman -Qu' timed out.".into();
+            emit_progress(&app_handle, "ERROR", &status.message);
+        }
+    }
+
+    // --- 2. Get last update date ---
+    status.last_update_date = get_last_update_date(&app_handle).await;
+        
+    // Update the final message
+    if status.last_update_date.is_some() {
+        let date_str = status.last_update_date.as_ref().unwrap();
+        if status.updates_available {
+            status.message = format!("{}. Last update: {}", status.message, date_str);
+        } else {
+            status.message = format!("System is up to date. Last update: {}", date_str);
+        }
+    } else if status.check_success {
+        status.message = format!("{}. Note: Could not determine last update date (check log file access).", status.message);
+    }
+
+    json!(status).to_string()
 }
