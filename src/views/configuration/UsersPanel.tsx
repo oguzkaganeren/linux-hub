@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import BlurredCard from "../../components/BlurredCard";
@@ -7,17 +6,18 @@ import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface User {
-  name: string;
-  groups: string[];
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
+import { UserInfo } from "../../types";
 
 const UsersPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
+
+  const users = sysInfo?.users || [];
+  const loading = status === "idle";
+  const error = status === "failed" ? "Could not load user information." : null;
+
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
   const t = useCallback(
@@ -26,27 +26,6 @@ const UsersPanel: React.FC = () => {
     },
     [language]
   );
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-        if (infoData.users && Array.isArray(infoData.users)) {
-          setUsers(infoData.users);
-        } else {
-          throw new Error("User information not found in system data.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch user info:", err);
-        setError("Could not load user information.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, []);
 
   const toggleExpand = (userName: string) => {
     setExpandedUser((prev) => (prev === userName ? null : userName));

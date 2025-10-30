@@ -1,16 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import Gauge from "../../components/configuration/Gauge";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface SystemMonitorInfo {
-  cpu: { global_usage_percent: number };
-  memory: { total_kb: number; used_kb: number };
-  disks: { total_gb: number; available_gb: number }[];
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
 
 const SystemMonitorPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
@@ -20,47 +14,29 @@ const SystemMonitorPanel: React.FC = () => {
     },
     [language]
   );
-  const [usage, setUsage] = useState({ cpu: 0, ram: 0, disk: 0 });
-  const [loading, setLoading] = useState(true);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
 
-  useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData: SystemMonitorInfo = JSON.parse(infoString);
+  const loading = status === "idle" || !sysInfo;
 
-        const ramUsage =
-          (infoData.memory.used_kb / infoData.memory.total_kb) * 100;
-
-        const totalDisk = infoData.disks.reduce(
-          (sum, d) => sum + d.total_gb,
-          0
-        );
-        const availableDisk = infoData.disks.reduce(
-          (sum, d) => sum + d.available_gb,
-          0
-        );
-        const usedDisk = totalDisk - availableDisk;
-        const diskUsage = totalDisk > 0 ? (usedDisk / totalDisk) * 100 : 0;
-
-        setUsage({
-          cpu: infoData.cpu.global_usage_percent,
-          ram: ramUsage,
-          disk: diskUsage,
-        });
-
-        if (loading) setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch system monitor info:", error);
-        // Keep old data on subsequent errors
-      }
-    };
-
-    fetchUsage(); // Initial fetch
-    const interval = setInterval(fetchUsage, 2000); // Update every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [loading]);
+  const usage = {
+    cpu: sysInfo?.cpu.global_usage_percent || 0,
+    ram: sysInfo ? (sysInfo.memory.used_kb / sysInfo.memory.total_kb) * 100 : 0,
+    disk: sysInfo
+      ? (() => {
+          const totalDisk = sysInfo.disks.reduce(
+            (sum, d) => sum + d.total_gb,
+            0
+          );
+          const availableDisk = sysInfo.disks.reduce(
+            (sum, d) => sum + d.available_gb,
+            0
+          );
+          const usedDisk = totalDisk - availableDisk;
+          return totalDisk > 0 ? (usedDisk / totalDisk) * 100 : 0;
+        })()
+      : 0,
+  };
 
   const renderContent = () => {
     if (loading) {

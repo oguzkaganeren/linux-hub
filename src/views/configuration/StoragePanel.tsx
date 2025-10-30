@@ -1,23 +1,20 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface DiskInfo {
-  name: string;
-  mount_point: string;
-  total_gb: number;
-  available_gb: number;
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
 
 const StoragePanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [disks, setDisks] = useState<DiskInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
+
+  const disks = sysInfo?.disks || [];
+  const loading = status === "idle";
+  const error =
+    status === "failed" ? "Could not load storage information." : null;
 
   const t = useCallback(
     (key: string): string => {
@@ -25,26 +22,6 @@ const StoragePanel: React.FC = () => {
     },
     [language]
   );
-
-  useEffect(() => {
-    const fetchDiskInfo = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-        if (infoData.disks && Array.isArray(infoData.disks)) {
-          setDisks(infoData.disks);
-        } else {
-          throw new Error("Disk information not found in system data.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch disk info:", err);
-        setError("Could not load storage information.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDiskInfo();
-  }, []);
 
   const renderContent = () => {
     if (loading) {

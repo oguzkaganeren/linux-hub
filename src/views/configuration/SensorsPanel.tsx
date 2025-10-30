@@ -1,23 +1,21 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface Component {
-  label: string;
-  temperature_c: number;
-  max_c: number;
-  critical_c: number | null;
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
+import { SensorInfo } from "../../types";
 
 const SensorsPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [components, setComponents] = useState<Component[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
+
+  const components = sysInfo?.components || [];
+  const loading = status === "idle";
+  const error =
+    status === "failed" ? "Could not load sensor information." : null;
 
   const t = useCallback(
     (key: string): string => {
@@ -25,30 +23,6 @@ const SensorsPanel: React.FC = () => {
     },
     [language]
   );
-
-  useEffect(() => {
-    const fetchSensorData = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-        if (infoData.components && Array.isArray(infoData.components)) {
-          setComponents(infoData.components);
-        } else {
-          throw new Error("Sensor information not found in system data.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch sensor info:", err);
-        setError("Could not load sensor information.");
-      } finally {
-        if (loading) setLoading(false);
-      }
-    };
-
-    fetchSensorData();
-    const interval = setInterval(fetchSensorData, 2000); // Refresh every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [loading]);
 
   const getTempColor = (temp: number, critical: number | null) => {
     const crit = critical || 100;

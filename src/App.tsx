@@ -14,8 +14,10 @@ import { Page, PackageStatus } from "./types";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { navigateTo, setOnlineStatus, setLiveMode } from "./store/appSlice";
 import { setProgress, checkAllPackageStates } from "./store/packagesSlice";
+import { updateSystemInfo, systemInfoError } from "./store/systemSlice";
 import { translations } from "./data/translations";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
 import { store } from "./store/store";
 
@@ -152,6 +154,47 @@ const App: React.FC = () => {
   // Effect for fetching initial package states from the system
   useEffect(() => {
     dispatch(checkAllPackageStates());
+  }, [dispatch]);
+
+  // Effect for live system info updates from the backend
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    const SYSTEM_INFO_EVENT = "system-info-update";
+
+    const setupSystemMonitorListener = async () => {
+      try {
+        unlisten = await listen(SYSTEM_INFO_EVENT, (event) => {
+          try {
+            const systemData = event.payload;
+            const data =
+              typeof systemData === "string"
+                ? JSON.parse(systemData)
+                : systemData;
+            dispatch(updateSystemInfo(data));
+          } catch (e) {
+            console.error("Error parsing system data payload:", e);
+            dispatch(systemInfoError("Error parsing system data."));
+          }
+        });
+
+        // Start the backend emitter after the listener is ready
+        await invoke("start_system_monitor");
+      } catch (e) {
+        console.error("Failed to set up system monitor listener:", e);
+        dispatch(systemInfoError("Failed to connect to system monitor."));
+      }
+    };
+
+    setupSystemMonitorListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+      // Optional: You might want a command to stop the monitor on cleanup
+      // invoke('stop_system_monitor').catch(console.error);
+    };
   }, [dispatch]);
 
   const handleNavigate = (p: Page) => dispatch(navigateTo(p));

@@ -8,15 +8,9 @@ import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { setPrimaryColor } from "../../store/themeSlice";
 import { install } from "../../store/packagesSlice";
 import { translations } from "../../data/translations";
-import { ConfigPanel, PackageStatus, Kernel } from "../../types";
+import { ConfigPanel, PackageStatus, Kernel, DiskInfo } from "../../types";
 import { colors } from "../../data/config";
-
-interface DiskInfo {
-  name: string;
-  mount_point: string;
-  total_gb: number;
-  available_gb: number;
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
 
 interface UpdateInfo {
   updates_available: boolean;
@@ -37,15 +31,13 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
   const theme = useAppSelector((state) => state.theme);
   const packagesState = useAppSelector((state) => state.packages.packagesState);
   const language = useAppSelector((state) => state.app.language);
-  const [disks, setDisks] = useState<DiskInfo[]>([]);
-  const [hostname, setHostname] = useState("LinuxDesktop");
-  const [networkInfo, setNetworkInfo] = useState({
-    name: "Ethernet",
-    status: "Connected",
-  });
+
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const systemStatus = useAppSelector(selectSystemStatus);
+
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [kernels, setKernels] = useState<Kernel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [otherInfoLoading, setOtherInfoLoading] = useState(true);
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {
@@ -81,34 +73,9 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
   );
 
   useEffect(() => {
-    const fetchSystemInfo = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    const fetchNonStreamingInfo = async () => {
+      setOtherInfoLoading(true);
       try {
-        // System Info
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-
-        if (infoData.disks && Array.isArray(infoData.disks))
-          setDisks(infoData.disks);
-        if (infoData.os_info && infoData.os_info.host_name)
-          setHostname(infoData.os_info.host_name);
-        if (infoData.networks && Array.isArray(infoData.networks)) {
-          const activeNetwork = infoData.networks.find(
-            (n: any) => n.interface_name !== "lo" && n.total_received_bytes > 0
-          );
-          if (activeNetwork) {
-            setNetworkInfo({
-              name: activeNetwork.interface_name,
-              status: t("connected"),
-            });
-          } else {
-            setNetworkInfo({
-              name: "No Connection",
-              status: t("internet_disconnected"),
-            });
-          }
-        }
-
         // Update Info
         const updateResultJson: string = await invoke("check_system_updates");
         const updateResult = JSON.parse(updateResultJson);
@@ -146,13 +113,13 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
         });
         setKernels(combinedKernels);
       } catch (err) {
-        console.error("Failed to fetch system info for home panel:", err);
+        console.error("Failed to fetch non-streaming home panel info:", err);
       } finally {
-        setLoading(false);
+        setOtherInfoLoading(false);
       }
     };
-    fetchSystemInfo();
-  }, [t]);
+    fetchNonStreamingInfo();
+  }, []);
 
   const recommendedSettings: {
     name: string;
@@ -167,6 +134,8 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
       panel: "personalization",
     },
   ];
+
+  const loading = otherInfoLoading || systemStatus === "idle" || !sysInfo;
 
   if (loading) {
     return (
@@ -210,6 +179,15 @@ const HomePanel: React.FC<{ setActivePanel: (panel: ConfigPanel) => void }> = ({
   const updateSubtitle = `${t("last_check")}: ${formatLastCheck(
     updateInfo?.last_update_date
   )}`;
+
+  const hostname = sysInfo.os_info?.host_name || "LinuxDesktop";
+  const activeNetwork = sysInfo.networks?.find(
+    (n) => n.interface_name !== "lo" && n.total_received_bytes > 0
+  );
+  const networkInfo = activeNetwork
+    ? { name: activeNetwork.interface_name, status: t("connected") }
+    : { name: "No Connection", status: t("internet_disconnected") };
+  const disks = sysInfo.disks || [];
 
   return (
     <>

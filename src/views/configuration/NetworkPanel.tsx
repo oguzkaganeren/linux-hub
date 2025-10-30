@@ -1,23 +1,21 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface Network {
-  interface_name: string;
-  mac_address: string;
-  total_received_bytes: number;
-  total_transmitted_bytes: number;
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
+import { NetworkInfo } from "../../types";
 
 const NetworkPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [networks, setNetworks] = useState<Network[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
+
+  const networks = sysInfo?.networks || [];
+  const loading = status === "idle";
+  const error =
+    status === "failed" ? "Could not load network information." : null;
 
   const t = useCallback(
     (key: string): string => {
@@ -25,30 +23,6 @@ const NetworkPanel: React.FC = () => {
     },
     [language]
   );
-
-  useEffect(() => {
-    const fetchNetworkData = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-        if (infoData.networks && Array.isArray(infoData.networks)) {
-          setNetworks(infoData.networks);
-        } else {
-          throw new Error("Network information not found in system data.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch network info:", err);
-        setError("Could not load network information.");
-      } finally {
-        if (loading) setLoading(false);
-      }
-    };
-
-    fetchNetworkData();
-    const interval = setInterval(fetchNetworkData, 2000); // Refresh every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [loading]);
 
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return "0 B";

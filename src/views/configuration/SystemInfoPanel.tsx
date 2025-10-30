@@ -1,43 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
 import AppIcon from "../../components/icons";
-
-// Define the shape of the data from the backend
-interface SystemInfo {
-  os_info: {
-    name: string;
-    kernel_version: string;
-    os_version: string;
-    host_name: string;
-  };
-  cpu: {
-    brand: string;
-    physical_cores: number;
-  };
-  memory: {
-    total_kb: number;
-    used_kb: number;
-    total_swap_kb: number;
-    used_swap_kb: number;
-  };
-  uptime_s: number;
-  boot_time_s: number;
-  load_average: {
-    one_min: number;
-    five_min: number;
-    fifteen_min: number;
-  };
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
 
 const SystemInfoPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
 
   const t = useCallback(
     (key: string): string => {
@@ -46,22 +18,11 @@ const SystemInfoPanel: React.FC = () => {
     [language]
   );
 
-  useEffect(() => {
-    const fetchSystemInfo = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData: SystemInfo = JSON.parse(infoString);
-        setSysInfo(infoData);
-      } catch (err) {
-        console.error("Failed to fetch system info:", err);
-        setError("Could not load system information. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSystemInfo();
-  }, []);
+  const loading = status === "idle";
+  const error =
+    status === "failed"
+      ? "Could not load system information. Please try again later."
+      : null;
 
   const formatUptime = (totalSeconds: number) => {
     const days = Math.floor(totalSeconds / 86400);

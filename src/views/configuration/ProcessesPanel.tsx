@@ -1,23 +1,28 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import React, { useCallback } from "react";
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector } from "../../store/hooks";
 import { translations } from "../../data/translations";
-
-interface Process {
-  pid: number;
-  name: string;
-  status: string;
-  cpu_usage_percent: number;
-}
+import { selectSystemInfo, selectSystemStatus } from "../../store/systemSlice";
+import { ProcessInfo } from "../../types";
 
 const ProcessesPanel: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const sysInfo = useAppSelector(selectSystemInfo);
+  const status = useAppSelector(selectSystemStatus);
+
+  const loading = status === "idle" || !sysInfo;
+  const error =
+    status === "failed" ? "Could not load process information." : null;
+
+  // Create a memoized sorted list of processes
+  const processes = React.useMemo(() => {
+    if (!sysInfo?.processes) return [];
+    return [...sysInfo.processes].sort(
+      (a, b) => b.cpu_usage_percent - a.cpu_usage_percent
+    );
+  }, [sysInfo?.processes]);
 
   const t = useCallback(
     (key: string): string => {
@@ -25,34 +30,6 @@ const ProcessesPanel: React.FC = () => {
     },
     [language]
   );
-
-  useEffect(() => {
-    const fetchProcesses = async () => {
-      try {
-        const infoString: string = await invoke("get_system_info");
-        const infoData = JSON.parse(infoString);
-        if (infoData.processes && Array.isArray(infoData.processes)) {
-          const sortedProcesses = infoData.processes.sort(
-            (a: Process, b: Process) =>
-              b.cpu_usage_percent - a.cpu_usage_percent
-          );
-          setProcesses(sortedProcesses);
-        } else {
-          throw new Error("Process information not found in system data.");
-        }
-      } catch (err) {
-        console.error("Failed to fetch process info:", err);
-        setError("Could not load process information.");
-      } finally {
-        if (loading) setLoading(false);
-      }
-    };
-
-    fetchProcesses();
-    const interval = setInterval(fetchProcesses, 3000); // Refresh every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [loading]);
 
   const renderContent = () => {
     if (loading) {
