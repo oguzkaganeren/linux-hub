@@ -27,10 +27,7 @@ const initialState: AppState = {
         email: 'user@linux.com',
         avatarUrl: '',
     },
-    bluetoothDevices: [
-        { id: 'bt-1', name: 'Logitech MX Master 3', status: 'Connected' },
-        { id: 'bt-2', name: 'Sony WH-1000XM4', status: 'Disconnected' },
-    ],
+    bluetoothDevices: [],
     printers: [
         { id: 'pr-1', name: 'HP LaserJet Pro M404dn', status: 'Ready' },
         { id: 'pr-2', name: 'Epson WorkForce WF-7720', status: 'Offline' },
@@ -70,11 +67,20 @@ const appSlice = createSlice({
         updateUserProfile: (state, action: PayloadAction<UserProfile>) => {
             state.user = action.payload;
         },
-        addBluetoothDevice: (state, action: PayloadAction<BluetoothDevice>) => {
-            state.bluetoothDevices.push(action.payload);
+        bluetoothDeviceDiscovered: (state, action: PayloadAction<BluetoothDevice>) => {
+            const discoveredDevice = action.payload;
+            const existingDeviceIndex = state.bluetoothDevices.findIndex(d => d.address === discoveredDevice.address);
+
+            if (existingDeviceIndex !== -1) {
+                // Update existing device
+                state.bluetoothDevices[existingDeviceIndex] = discoveredDevice;
+            } else {
+                // Add new device
+                state.bluetoothDevices.push(discoveredDevice);
+            }
         },
-        removeBluetoothDevice: (state, action: PayloadAction<string>) => {
-            state.bluetoothDevices = state.bluetoothDevices.filter(d => d.id !== action.payload);
+        bluetoothDeviceRemoved: (state, action: PayloadAction<string>) => { // payload is address
+            state.bluetoothDevices = state.bluetoothDevices.filter(d => d.address !== action.payload);
         },
         addPrinter: (state, action: PayloadAction<PrinterDevice>) => {
             state.printers.push(action.payload);
@@ -97,8 +103,8 @@ export const {
     closeSettingsModal,
     setLaunchOnStart,
     updateUserProfile,
-    addBluetoothDevice,
-    removeBluetoothDevice,
+    bluetoothDeviceDiscovered,
+    bluetoothDeviceRemoved,
     addPrinter,
     removePrinter,
     setLiveMode,

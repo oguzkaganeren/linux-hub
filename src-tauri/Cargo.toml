@@ -32,3 +32,5 @@ sysinfo = { version = "0.37.2", features = ["serde"] } # The main system informa
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.31"
 chrono = { version = "0.4", features = ["serde"] }
+bluer = { version = "0.17.4", features = ["full", "serde"] }
+anyhow = "1.0.100"

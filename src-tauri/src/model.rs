@@ -1,5 +1,7 @@
 // model.rs
 use serde::{Serialize};
+use bluer::Address;
+use bluer::Device;
 
 // --- Core System Data Model ---
 
@@ -121,4 +123,78 @@ pub struct InstallableKernel {
     pub version: String,
     pub description: String,
     pub flavor: String,
+}
+/// Event name for continuous device updates sent to the frontend.
+pub const BLUETOOTH_DEVICE_EVENT: &str = "bluetooth-device-update";
+
+/// An enum representing the type of change to a device list.
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum DeviceUpdate {
+    /// A new device has been discovered or an existing one was updated.
+    Discovered { device: BluetoothDevice },
+    /// A device has been removed (e.g., went out of range).
+    Removed { address: String },
+}
+
+/// Simplified model for a Bluetooth device.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BluetoothDevice {
+    pub name: Option<String>,
+    pub address: String,
+    pub rssi: Option<i16>,
+    pub is_connected: bool,
+    pub is_paired: bool,
+    pub vendor_data: Option<String>,
+}
+
+impl BluetoothDevice {
+    /// Async factory method to convert bluer::Device to BluetoothDevice
+    pub async fn from_bluer_device(device: &Device) -> Self {
+        BluetoothDevice {
+            // These properties are async and return a Result, so we await and unwrap/default
+            name: device.name().await.ok().flatten(),
+            address: device.address().to_string(),
+            rssi: device.rssi().await.ok().flatten(),
+            is_connected: device.is_connected().await.unwrap_or(false),
+            is_paired: device.is_paired().await.unwrap_or(false),
+            vendor_data: None, // Simplified
+        }
+    }
+}
+
+/// Command results to send back to the frontend.
+#[derive(Serialize)]
+pub struct CommandResult {
+    pub success: bool,
+    pub message: String,
+}
+
+impl CommandResult {
+    pub fn ok(message: impl Into<String>) -> Self {
+        CommandResult { success: true, message: message.into() }
+    }
+    pub fn error(message: impl Into<String>) -> Self {
+        CommandResult { success: false, message: message.into() }
+    }
+}
+
+// Convert bluer::Error to a serializable type for Tauri command error
+impl From<bluer::Error> for CommandResult {
+    fn from(err: bluer::Error) -> Self {
+        CommandResult::error(format!("Bluetooth Error: {}", err))
+    }
+}
+
+// Convert a general error to a serializable type for Tauri command error
+impl From<anyhow::Error> for CommandResult {
+    fn from(err: anyhow::Error) -> Self {
+        CommandResult::error(format!("General Error: {}", err))
+    }
+}
+
+/// Utility to convert a string address to bluer::Address
+pub fn parse_address(address: &str) -> anyhow::Result<Address> {
+    address.parse::<Address>().map_err(|e| anyhow::anyhow!("Invalid Bluetooth Address: {}", e))
 }

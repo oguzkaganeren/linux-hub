@@ -1,5 +1,5 @@
 use std::process::Command;
-use tauri::Manager;
+use tauri::{Manager};
 use std::fs;
 use std::path::PathBuf;
 use base64::{engine::general_purpose, Engine as _};
@@ -15,6 +15,9 @@ mod system; // NEW: Import the system module
 use hardware::get_hardware_info;
 use model::*; // Import all structs from model.rs
 use system::start_system_monitor; // Import the new command
+
+mod bluetooth;
+
 
 #[tauri::command]
 async fn hardware_info() -> Result<String, String> {
@@ -300,12 +303,20 @@ pub fn run() {
             get_system_user_info,
             get_user_profile_photo_base64,
             run_elevated_command,
+
            start_system_monitor,
             hardware_info,
             pacman_manager::manage_pacman_package,
             pacman_manager::check_package_status,
             pacman_manager::check_system_updates,
              pacman_manager::check_packages_status,
+
+       bluetooth::start_discovery,
+            bluetooth::connect_device,
+            bluetooth::disconnect_device,
+            bluetooth::pair_device,
+            bluetooth::remove_device,
+            bluetooth::list_paired_devices,
             get_system_kernels])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

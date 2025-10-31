@@ -61,15 +61,26 @@ export interface UserProfile {
 }
 
 export interface BluetoothDevice {
-    id: string;
-    name: string;
-    status: 'Connected' | 'Disconnected';
+    address: string;
+    name?: string;
+    paired: boolean;
+    connected: boolean;
+    rssi?: number | null;
 }
+
+export type BluetoothDeviceEvent =
+    | { type: 'discovered'; device: BluetoothDevice }
+    | { type: 'removed'; address: string };
 
 export interface PrinterDevice {
     id: string;
     name: string;
     status: 'Ready' | 'Offline' | 'Printing';
+}
+
+export interface CommandResult {
+  success: boolean;
+  message: string;
 }
 
 export interface SystemLocale {
