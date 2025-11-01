@@ -2,24 +2,21 @@ import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Plus, X, Loader, RefreshCw } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
+import { motion, AnimatePresence } from "framer-motion";
 
 import BlurredCard from "../../components/BlurredCard";
 import Panel from "../../components/configuration/Panel";
 import AppIcon from "../../components/icons";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import {
-  addPrinter,
-  removePrinter,
   bluetoothDeviceDiscovered,
   bluetoothDeviceRemoved,
 } from "../../store/appSlice";
 import { translations } from "../../data/translations";
-import {
-  BluetoothDevice,
-  PrinterDevice,
-  BluetoothDeviceEvent,
-} from "../../types";
+import { BluetoothDevice, BluetoothDeviceEvent } from "../../types";
 import * as bluetooth from "../../lib/bluetooth";
+import * as printer from "../../lib/printer";
+import AddPrinterModal from "../../components/configuration/AddPrinterModal";
 
 const DevicesPanel: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -29,19 +26,29 @@ const DevicesPanel: React.FC = () => {
 
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [isAddPrinterModalOpen, setAddPrinterModalOpen] = useState(false);
 
   const t = useCallback(
-    (key: string): string => {
-      return translations[language]?.[key] || translations["en"]?.[key] || key;
+    (key: string, params?: Record<string, string | number>): string => {
+      let translation =
+        translations[language]?.[key] || translations["en"]?.[key] || key;
+      if (params) {
+        Object.entries(params).forEach(([paramKey, value]) => {
+          translation = translation.replace(`{${paramKey}}`, String(value));
+        });
+      }
+      return translation;
     },
     [language]
   );
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenBluetooth: (() => void) | undefined;
+    let unlistenPrinters: (() => void) | undefined;
 
-    const setupListener = async () => {
-      unlisten = await listen<BluetoothDeviceEvent>(
+    const setupListeners = async () => {
+      // Bluetooth
+      unlistenBluetooth = await listen<BluetoothDeviceEvent>(
         "bluetooth-device-update",
         (event) => {
           const update = event.payload;
@@ -52,9 +59,6 @@ const DevicesPanel: React.FC = () => {
           }
         }
       );
-    };
-
-    const fetchInitialDevices = async () => {
       try {
         const devices = await bluetooth.listPairedDevices();
         devices.forEach((device) =>
@@ -63,24 +67,26 @@ const DevicesPanel: React.FC = () => {
       } catch (error) {
         toast.error(`Failed to load paired devices: ${error}`);
       }
+
+      // Printers
+      unlistenPrinters = await printer.initPrinterListener(dispatch);
+      printer.getPrinters(); // Fetch initial list
     };
 
-    setupListener();
-    fetchInitialDevices();
+    setupListeners();
 
     return () => {
-      if (unlisten) {
-        unlisten();
-      }
+      if (unlistenBluetooth) unlistenBluetooth();
+      if (unlistenPrinters) unlistenPrinters();
     };
   }, [dispatch]);
 
+  // --- Bluetooth Logic ---
   const handleStartDiscovery = async () => {
     setIsDiscovering(true);
     toast(t("toast_searching_devices"));
     try {
       await bluetooth.startDiscovery();
-      // Discovery usually runs for a short period. We'll stop the visual indicator after 20s.
       setTimeout(() => setIsDiscovering(false), 20000);
     } catch (error) {
       toast.error(String(error));
@@ -125,7 +131,6 @@ const DevicesPanel: React.FC = () => {
     setPendingAction(device.address);
     try {
       await bluetooth.removeDevice(device.address);
-      // Optimistically remove from UI
       dispatch(bluetoothDeviceRemoved(device.address));
       toast.success(`${device.name || device.address}: Removed`);
     } catch (error) {
@@ -137,39 +142,29 @@ const DevicesPanel: React.FC = () => {
     }
   };
 
-  // --- Printer logic (unchanged) ---
-  const handleAddPrinter = () => {
-    toast.promise(new Promise((resolve) => setTimeout(resolve, 2000)), {
-      loading: t("toast_searching_devices"),
-      success: () => {
-        const newPrinter: PrinterDevice = {
-          id: `pr-${Date.now()}`,
-          name: "Canon PIXMA TS6420a",
-          status: "Ready",
-        };
-        dispatch(addPrinter(newPrinter));
-        return t("toast_device_added");
-      },
-      error: "Failed to add device",
-    });
-  };
-
-  const handleRemovePrinter = (id: string) => {
-    dispatch(removePrinter(id));
-    toast.success(t("toast_device_removed"));
+  // --- Printer Logic ---
+  const handleRemovePrinter = async (name: string) => {
+    const confirmText = t("remove_printer_confirm_text", { printerName: name });
+    if (window.confirm(confirmText)) {
+      try {
+        await printer.removePrinterCmd(name);
+      } catch (e) {
+        toast.error(`Failed to remove printer: ${e}`);
+      }
+    }
   };
 
   const getStatusChip = (status: string) => {
     const s = status.toLowerCase();
     let colorClasses =
       "bg-gray-200 dark:bg-gray-900/50 text-gray-800 dark:text-gray-300";
-    if (s.includes("connected") || s.includes("ready")) {
+    if (s.includes("idle")) {
       colorClasses =
         "bg-green-200 dark:bg-green-900/50 text-green-800 dark:text-green-300";
-    } else if (s.includes("offline") || s.includes("disconnected")) {
+    } else if (s.includes("stopped") || s.includes("offline")) {
       colorClasses =
         "bg-red-200 dark:bg-red-900/50 text-red-800 dark:text-red-300";
-    } else if (s.includes("printing")) {
+    } else if (s.includes("processing") || s.includes("printing")) {
       colorClasses =
         "bg-blue-200 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300";
     }
@@ -291,7 +286,7 @@ const DevicesPanel: React.FC = () => {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">{t("printers")}</h2>
           <button
-            onClick={handleAddPrinter}
+            onClick={() => setAddPrinterModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary-color)] text-white font-semibold rounded-lg hover:brightness-90 transition-all"
           >
             <Plus size={16} /> {t("add_printer")}
@@ -300,20 +295,35 @@ const DevicesPanel: React.FC = () => {
         <div className="space-y-2">
           {printers.map((printer) => (
             <div
-              key={printer.id}
+              key={printer.name}
               className="flex justify-between items-center p-3 rounded-lg hover:bg-gray-100/80 dark:hover:bg-gray-700/50"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 overflow-hidden">
                 <AppIcon
                   name="printer"
-                  className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                  className="w-5 h-5 text-gray-600 dark:text-gray-300 flex-shrink-0"
                 />
-                <p className="font-medium">{printer.name}</p>
+                <div className="overflow-hidden">
+                  <p className="font-medium truncate" title={printer.name}>
+                    {printer.name}{" "}
+                    {printer.isDefault && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        (Default)
+                      </span>
+                    )}
+                  </p>
+                  <p
+                    className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                    title={printer.description}
+                  >
+                    {printer.description}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
-                {getStatusChip(printer.status)}
+                {getStatusChip(printer.state)}
                 <button
-                  onClick={() => handleRemovePrinter(printer.id)}
+                  onClick={() => handleRemovePrinter(printer.name)}
                   className="p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-red-500/20 hover:text-red-500 transition-colors"
                 >
                   <X size={18} />
@@ -321,8 +331,18 @@ const DevicesPanel: React.FC = () => {
               </div>
             </div>
           ))}
+          {printers.length === 0 && (
+            <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+              No printers found.
+            </div>
+          )}
         </div>
       </BlurredCard>
+      <AnimatePresence>
+        {isAddPrinterModalOpen && (
+          <AddPrinterModal onClose={() => setAddPrinterModalOpen(false)} />
+        )}
+      </AnimatePresence>
     </Panel>
   );
 };

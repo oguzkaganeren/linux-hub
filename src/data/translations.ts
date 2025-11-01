@@ -126,6 +126,7 @@ export const translations: Record<string, Record<string, string>> = {
     about_powered_by: 'Powered by React, Tailwind CSS, Framer Motion, and Lucide Icons.',
     remove_kernel_confirm_text: 'Are you sure you want to remove {kernelVersion}? This action cannot be undone.',
     remove_package_confirm_text: 'Are you sure you want to remove {packageName}?',
+    remove_printer_confirm_text: 'Are you sure you want to remove printer "{printerName}"?',
     background_tasks_running: 'Background tasks are running...',
     installing_package_count: '{count} tasks running...',
     locale_settings: 'Locale Settings',
@@ -175,6 +176,16 @@ export const translations: Record<string, Record<string, string>> = {
     toast_profile_updated: 'Profile updated!',
     toast_user_update_inprogress: 'Saving changes...',
     toast_user_update_failed: 'Update failed',
+    // Printer Modal
+    add_new_printer: 'Add New Printer',
+    printer_name: 'Printer Name',
+    device_uri: 'Device URI',
+    ppd_path: 'PPD Path',
+    description: 'Description',
+    location: 'Location',
+    toast_printer_add_inprogress: 'Adding printer...',
+    toast_printer_add_success: 'Printer added successfully!',
+    toast_printer_add_failed: 'Failed to add printer',
   },
   es: {
     app_name: 'Linux Hub',
@@ -296,6 +307,7 @@ export const translations: Record<string, Record<string, string>> = {
     about_powered_by: 'Hecho con React, Tailwind CSS, Framer Motion y Lucide Icons.',
     remove_kernel_confirm_text: '¿Estás seguro de que quieres eliminar {kernelVersion}? Esta acción no se puede deshacer.',
     remove_package_confirm_text: '¿Estás seguro de que quieres eliminar {packageName}?',
+    remove_printer_confirm_text: '¿Estás seguro de que quieres eliminar la impresora "{printerName}"?',
     background_tasks_running: 'Ejecutando tareas en segundo plano...',
     installing_package_count: '{count} tareas en ejecución...',
     locale_settings: 'Configuración Regional',
@@ -345,5 +357,15 @@ export const translations: Record<string, Record<string, string>> = {
     toast_profile_updated: '¡Perfil actualizado!',
     toast_user_update_inprogress: 'Guardando cambios...',
     toast_user_update_failed: 'Falló la actualización',
+    // Printer Modal
+    add_new_printer: 'Añadir Nueva Impresora',
+    printer_name: 'Nombre de la Impresora',
+    device_uri: 'URI del Dispositivo',
+    ppd_path: 'Ruta PPD',
+    description: 'Descripción',
+    location: 'Ubicación',
+    toast_printer_add_inprogress: 'Añadiendo impresora...',
+    toast_printer_add_success: '¡Impresora añadida correctamente!',
+    toast_printer_add_failed: 'Error al añadir la impresora',
   }
 };

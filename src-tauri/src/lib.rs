@@ -17,6 +17,7 @@ use model::*; // Import all structs from model.rs
 use system::start_system_monitor; // Import the new command
 
 mod bluetooth;
+mod printers;
 
 
 #[tauri::command]
@@ -294,6 +295,11 @@ pub fn run() {
                 window.open_devtools();
                 window.close_devtools();
             }
+            let handle = app.handle().clone();
+            // Optional: emit current list on startup
+            tauri::async_runtime::spawn(async move {
+                let _ = printers::get_printers(handle).await;
+            });
             Ok(())
         })
         .plugin(tauri_plugin_log::Builder::new().build())
@@ -303,7 +309,9 @@ pub fn run() {
             get_system_user_info,
             get_user_profile_photo_base64,
             run_elevated_command,
-
+printers::get_printers, 
+            printers::add_printer_cmd, 
+            printers::remove_printer_cmd,
            start_system_monitor,
             hardware_info,
             pacman_manager::manage_pacman_package,

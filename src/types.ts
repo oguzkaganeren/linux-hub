@@ -73,9 +73,13 @@ export type BluetoothDeviceEvent =
     | { type: 'removed'; address: string };
 
 export interface PrinterDevice {
-    id: string;
     name: string;
-    status: 'Ready' | 'Offline' | 'Printing';
+    deviceUri: string;
+    description: string;
+    location: string;
+    isDefault: boolean;
+    state: string;
+    acceptingJobs: boolean;
 }
 
 export interface CommandResult {

@@ -28,10 +28,7 @@ const initialState: AppState = {
         avatarUrl: '',
     },
     bluetoothDevices: [],
-    printers: [
-        { id: 'pr-1', name: 'HP LaserJet Pro M404dn', status: 'Ready' },
-        { id: 'pr-2', name: 'Epson WorkForce WF-7720', status: 'Offline' },
-    ],
+    printers: [],
     isLiveMode: false,
     isCheckingLiveMode: true,
 };
@@ -82,11 +79,11 @@ const appSlice = createSlice({
         bluetoothDeviceRemoved: (state, action: PayloadAction<string>) => { // payload is address
             state.bluetoothDevices = state.bluetoothDevices.filter(d => d.address !== action.payload);
         },
-        addPrinter: (state, action: PayloadAction<PrinterDevice>) => {
-            state.printers.push(action.payload);
+        setPrinters: (state, action: PayloadAction<PrinterDevice[]>) => {
+            state.printers = action.payload;
         },
-        removePrinter: (state, action: PayloadAction<string>) => {
-            state.printers = state.printers.filter(d => d.id !== action.payload);
+        removePrinterByName: (state, action: PayloadAction<string>) => {
+            state.printers = state.printers.filter(p => p.name !== action.payload);
         },
         setLiveMode: (state, action: PayloadAction<boolean>) => {
             state.isLiveMode = action.payload;
@@ -105,8 +102,8 @@ export const {
     updateUserProfile,
     bluetoothDeviceDiscovered,
     bluetoothDeviceRemoved,
-    addPrinter,
-    removePrinter,
+    setPrinters,
+    removePrinterByName,
     setLiveMode,
     openProfileModal,
     closeProfileModal

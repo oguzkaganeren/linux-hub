@@ -1,5 +1,5 @@
 // model.rs
-use serde::{Serialize};
+use serde::{Serialize, Deserialize};
 use bluer::Address;
 use bluer::Device;
 
@@ -197,4 +197,32 @@ impl From<anyhow::Error> for CommandResult {
 /// Utility to convert a string address to bluer::Address
 pub fn parse_address(address: &str) -> anyhow::Result<Address> {
     address.parse::<Address>().map_err(|e| anyhow::anyhow!("Invalid Bluetooth Address: {}", e))
+}
+
+pub const PRINTER_EVENT: &str = "printer-event";
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Printer {
+    pub name: String,
+    pub device_uri: String,
+    pub description: Option<String>,
+    pub location: Option<String>,
+    pub is_default: bool,
+    pub state: PrinterState,
+    pub accepting_jobs: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum PrinterState {
+    Idle,
+    Printing,
+    Stopped,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum PrinterEvent {
+    List(Vec<Printer>),
+    Added(String),
+    Removed(String),
+    Error(String),
 }
