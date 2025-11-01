@@ -17,6 +17,9 @@ import AppCard from "../components/packages/AppCard";
 const Packages: React.FC = () => {
   const language = useAppSelector((state) => state.app.language);
   const packagesGlobalStatus = useAppSelector((state) => state.packages.status);
+  const isSidebarCollapsed = useAppSelector(
+    (state) => state.app.isSidebarCollapsed
+  );
   const t = useCallback(
     (key: string): string => {
       return translations[language]?.[key] || translations["en"]?.[key] || key;
@@ -86,23 +89,32 @@ const Packages: React.FC = () => {
   return (
     <div className="h-full flex">
       {/* Left Category Rail */}
-      <aside className="w-52 md:w-64 flex-shrink-0 p-4 pl-6 pr-2">
+      <aside
+        className={`flex-shrink-0 p-4 pl-6 pr-2 transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? "w-24 pl-4" : "w-52 md:w-64"
+        }`}
+      >
         <div className="h-full bg-gray-100/80 dark:bg-gray-800/50 rounded-xl p-2 md:p-4 flex flex-col gap-1">
           {packageData.map((cat) => (
             <button
               key={cat.name}
+              title={cat.name}
               onClick={() => {
                 setSelectedCategory(cat);
                 setSearchTerm("");
               }}
-              className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-md font-medium transition-colors text-sm md:text-base ${
+              className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-md font-medium transition-colors text-sm md:text-base overflow-hidden min-h-[44px] ${
+                isSidebarCollapsed ? "justify-center" : ""
+              } ${
                 selectedCategory.name === cat.name && !searchTerm
                   ? "bg-[var(--primary-color)]/20 text-[var(--primary-color)]"
                   : "text-gray-700 dark:text-gray-300 hover:bg-gray-200/50 dark:hover:bg-gray-700/50"
               }`}
             >
-              <AppIcon name={cat.icon} className="w-5 h-5" />
-              <span className="truncate">{cat.name}</span>
+              <AppIcon name={cat.icon} className="w-5 h-5 flex-shrink-0" />
+              {!isSidebarCollapsed && (
+                <span className="truncate">{cat.name}</span>
+              )}
             </button>
           ))}
         </div>

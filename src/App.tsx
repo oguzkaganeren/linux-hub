@@ -234,6 +234,7 @@ const App: React.FC = () => {
       />
       <TitleBar
         showBackButton={page !== "landing" && page !== "home"}
+        showMenuButton={page === "packages" || page === "configuration"}
         onBack={() => handleNavigate("home")}
       />
       <main className="flex-grow relative">

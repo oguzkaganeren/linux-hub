@@ -29,6 +29,9 @@ const Configuration: React.FC = () => {
   const [activePanel, setActivePanel] = useState<ConfigPanel>("home");
   const language = useAppSelector((state) => state.app.language);
   const user = useAppSelector((state) => state.app.user);
+  const isSidebarCollapsed = useAppSelector(
+    (state) => state.app.isSidebarCollapsed
+  );
   const dispatch = useAppDispatch();
 
   const t = useCallback(
@@ -141,11 +144,17 @@ const Configuration: React.FC = () => {
   return (
     <div className="h-full flex">
       {/* Left Navigation Rail */}
-      <aside className="w-64 lg:w-80 flex-shrink-0 p-4 pr-0">
-        <div className="h-full bg-gray-100/80 dark:bg-gray-800/50 rounded-xl p-4 flex flex-col">
+      <aside
+        className={`flex-shrink-0 p-4 pr-0 transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? "w-24 pr-4" : "w-64 lg:w-80"
+        }`}
+      >
+        <div className="h-full bg-gray-100/80 dark:bg-gray-800/50 rounded-xl p-4 flex flex-col overflow-hidden">
           <button
             onClick={() => dispatch(openProfileModal())}
-            className="flex items-center gap-3 p-2 mb-4 rounded-lg text-left w-full hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
+            className={`flex items-center gap-3 p-2 mb-4 rounded-lg text-left w-full hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors ${
+              isSidebarCollapsed ? "justify-center" : ""
+            }`}
           >
             <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user.avatarUrl ? (
@@ -161,17 +170,32 @@ const Configuration: React.FC = () => {
                 />
               )}
             </div>
-            <div className="overflow-hidden">
-              <p className="font-semibold text-base md:text-lg text-gray-800 dark:text-gray-100 truncate">
-                {user.name}
-              </p>
-              <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
-                {user.email}
-              </p>
-            </div>
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{
+                    opacity: 1,
+                    width: "auto",
+                    transition: { duration: 0.2, delay: 0.1 },
+                  }}
+                  exit={{ opacity: 0, width: 0, transition: { duration: 0.2 } }}
+                  className="overflow-hidden flex-shrink min-w-0"
+                >
+                  <p className="font-semibold text-base md:text-lg text-gray-800 dark:text-gray-100 truncate">
+                    {user.name}
+                  </p>
+                  <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {user.email}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </button>
 
-          <div className="relative mb-4">
+          <div
+            className={`relative mb-4 ${isSidebarCollapsed ? "hidden" : ""}`}
+          >
             <AppIcon
               name="search"
               className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
@@ -191,6 +215,7 @@ const Configuration: React.FC = () => {
                 name={item.name}
                 icon={item.icon}
                 active={activePanel === item.id}
+                isCollapsed={isSidebarCollapsed}
                 onClick={setActivePanel}
               />
             ))}

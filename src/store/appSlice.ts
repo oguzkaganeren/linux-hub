@@ -7,6 +7,7 @@ interface AppState {
     language: string;
     isSettingsModalOpen: boolean;
     isProfileModalOpen: boolean;
+    isSidebarCollapsed: boolean;
     launchOnStart: boolean;
     user: UserProfile;
     bluetoothDevices: BluetoothDevice[];
@@ -21,6 +22,7 @@ const initialState: AppState = {
     language: 'en',
     isSettingsModalOpen: false,
     isProfileModalOpen: false,
+    isSidebarCollapsed: false,
     launchOnStart: true,
     user: {
         name: 'User Demo',
@@ -57,6 +59,9 @@ const appSlice = createSlice({
         },
         closeProfileModal: (state) => {
             state.isProfileModalOpen = false;
+        },
+        toggleSidebar: (state) => {
+            state.isSidebarCollapsed = !state.isSidebarCollapsed;
         },
         setLaunchOnStart: (state, action: PayloadAction<boolean>) => {
             state.launchOnStart = action.payload;
@@ -106,7 +111,8 @@ export const {
     removePrinterByName,
     setLiveMode,
     openProfileModal,
-    closeProfileModal
+    closeProfileModal,
+    toggleSidebar,
 } = appSlice.actions;
 
 export default appSlice.reducer;
