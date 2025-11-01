@@ -1,6 +1,6 @@
 # Welcome to GitHub docs contributing guide <!-- omit in toc -->
 
-Thank you for investing your time in contributing to our project! Any contribution you make will be reflected on manj :sparkles:. 
+Thank you for investing your time in contributing to our project! Any contribution you make will be reflected on LinuxHub :sparkles:. 
 
 Read our [Code of Conduct](./CODE_OF_CONDUCT.md) to keep our community approachable and respectable.
 
@@ -22,11 +22,11 @@ To get an overview of the project, read the [README](README.md). Here are some r
 
 #### Create a new issue
 
-If you spot a problem, search if an issue already exists. If a related issue doesn't exist, you can open a new issue using a relevant [issue form](https://github.com/oguzkaganeren/manj/issues/new/choose). 
+If you spot a problem, search if an issue already exists. If a related issue doesn't exist, you can open a new issue using a relevant [issue form](https://github.com/oguzkaganeren/linuxhub/issues/new/choose). 
 
 #### Solve an issue
 
-Scan through our [existing issues](https://github.com/oguzkaganeren/manj/issues) to find one that interests you. You can narrow down the search using `labels` as filters. As a general rule, we don’t assign issues to anyone. If you find an issue to work on, you are welcome to open a PR with a fix.
+Scan through our [existing issues](https://github.com/oguzkaganeren/linuxhub/issues) to find one that interests you. You can narrow down the search using `labels` as filters. As a general rule, we don’t assign issues to anyone. If you find an issue to work on, you are welcome to open a PR with a fix.
 
 ### Make Changes
 
@@ -65,5 +65,5 @@ Congratulations :tada::tada: thank you for your effort :sparkles:.
 
 Once your PR is merged, your contributions will be publicly visible on the [README](README.md). 
 
-Now that you are part of the manj.
+Now that you are part of the LinuxHub.
 
